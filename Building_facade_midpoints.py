@@ -1,3 +1,8 @@
+# %% [markdown]
+# ### Import necessary libraries
+# In this first cell, we import the necessary Python libraries for spatial data manipulation, querying OpenStreetMap (OSM) data, and plotting.
+
+# %%
 # Import necessary libraries
 import overpy
 import geopandas as gpd
@@ -10,6 +15,11 @@ import networkx as nx
 import contextily as cx
 import plotly.graph_objects as go
 
+# %% [markdown]
+# ### Helper functions
+# We define some key helper functions used in processing building geometries and calculating the midpoints of building facades.
+
+# %%
 # Helper function to close small gaps between lines
 def close_small_gaps(line, tolerance=0.0001):
     if line.is_ring:  # Already closed
@@ -183,6 +193,18 @@ def process_building(element):
         'name': name
     }
 
+# %% [markdown]
+# close_small_gaps: This function ensures that small gaps between lines are closed. It checks whether the start and end of a line are within a given tolerance and closes the gap if necessary.
+# 
+# process_building: Process of all buildings by properly handlying polygons and multypoligons, as well as situations in which in one relation more than one detached building is present.
+# 
+# get_facade_midpoints_per_building: Given a building polygon, this function calculates and returns the midpoints of each facade (edge) of the building.
+
+# %% [markdown]
+# ### Querying OSM Data
+# We use Overpass API to query OpenStreetMap for building data within a bounding box of interest.
+
+# %%
 # Query OSM and process building data
 lat_min, lon_min, lat_max, lon_max = 44.462038, 11.246704, 44.546981, 11.425919
 #lat_min, lon_min, lat_max, lon_max = 44.481485, 11.322287, 44.507621, 11.364000
@@ -209,6 +231,17 @@ for element in result.ways + result.relations:
         if building_data:
             buildings.append(building_data)
 
+
+# %% [markdown]
+# We query building data from OSM using the Overpass API for a specific geographical area defined by latitude and longitude coordinates.
+# 
+# The result includes ways and relations representing buildings.
+
+# %% [markdown]
+# ### Processing Building Data
+# Now that we have building data, we process the results into a GeoDataFrame and prepare the data for further spatial analysis.
+
+# %%
 # Create a GeoDataFrame for building footprints
 gdf = gpd.GeoDataFrame(buildings, crs="EPSG:4326")
 
@@ -223,6 +256,18 @@ gdf_projected = gdf.to_crs(target_crs)
 min_area = 10  # in square meters
 gdf_projected = gdf_projected[gdf_projected.geometry.area > min_area]
 
+# %% [markdown]
+# We store the building data in a GeoDataFrame.
+# 
+# We reproject the data into the EPSG:7791 coordinate system.
+# 
+# We filter out small buildings with an area of less than 10 square meters.
+
+# %% [markdown]
+# ### Calculating Facade Midpoints
+# We calculate the midpoints of the facades for each building.
+
+# %%
 # Process each building footprint separately
 facade_midpoints_data = []
 for index, row in gdf_projected.iterrows():  # Iterate through rows with index
@@ -246,6 +291,14 @@ facade_midpoints_gdf.plot(ax=ax, color='red', markersize=3)
 plt.title("Building Footprints and Facade Midpoints for Each Building")
 plt.show()
 
+# %% [markdown]
+# This section computes the midpoints of each building facade and stores the results in a new GeoDataFrame.
+
+# %% [markdown]
+# ### Analyzing Grouped Buildings
+# Here we perform spatial analysis to identify groups of adjacent buildings and find exterior boundaries of these groups.
+
+# %%
 # Parameters
 buffer_distance = 0.1  # For joining buildings
 min_segment_length = 1.0  # Minimum length for facade segments
@@ -272,6 +325,16 @@ for group_id, component in enumerate(connected_components):
     else:
         gdf_projected.loc[list(component), 'group_id'] = f'block_{group_id}'
 
+# %% [markdown]
+# We buffer the buildings slightly to join adjacent buildings and use spatial joins to group them into blocks or groups.
+# 
+# A graph is constructed to represent building adjacency, and connected components (groups) are identified.
+
+# %% [markdown]
+# ### Processing and Plotting Exterior Boundaries and Midpoints
+# Finally, we plot the exterior boundaries and midpoints of building facades.
+
+# %%
 # Process each group and identify facade segments along the outer edge, including building IDs
 facade_segments = []
 exterior_boundaries = []
@@ -300,6 +363,13 @@ for group_id, group_gdf in gdf_projected.groupby('group_id'):
 facade_segments_gdf = gpd.GeoDataFrame(facade_segments, crs=gdf_projected.crs)
 exterior_boundaries_gdf = gpd.GeoDataFrame(exterior_boundaries, crs=gdf_projected.crs)
 
+# %% [markdown]
+# For each group of buildings, we compute the exterior boundary and the midpoints of building facades that are part of this boundary.
+
+# %%
+facade_segments_gdf
+
+# %%
 # Save your data as shapefiles and GeoJSONs
 data_path = 'data/Street_view/'
 
@@ -308,6 +378,8 @@ gdf_projected.to_file(data_path + "Bologna_buildings.geojson", driver="GeoJSON")
 exterior_boundaries_gdf.to_file(data_path + "Bologna_exterior_boundaries.geojson", driver="GeoJSON")
 facade_segments_gdf.to_file(data_path + "Bologna_facade_segments.geojson", driver="GeoJSON")
 
+
+# %%
 # Plot all buildings, boundaries, and midpoints on one map
 fig, ax = plt.subplots(figsize=(12, 12))
 gdf_projected.plot(ax=ax, color='lightgrey', edgecolor='grey')
@@ -317,3 +389,8 @@ facade_segments_gdf.plot(ax=ax, color='red', markersize=10)
 #cx.add_basemap(ax, source=cx.providers.OpenStreetMap.Mapnik, zoom=15)
 plt.title("Building Footprints, Group Boundaries, and Facade Midpoints")
 plt.show()
+
+# %% [markdown]
+# The final plot shows the buildings, their boundaries, and the calculated facade midpoints.
+
+
