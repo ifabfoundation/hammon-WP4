@@ -160,7 +160,7 @@ def get_facade_midpoints_per_building(polygon, building_id):
     return midpoints
 
 # Query OSM and process building data
-lat_min, lon_min, lat_max, lon_max = 44.462038, 11.246704, 44.546981, 11.425919
+lat_min, lon_min, lat_max, lon_max = 44.481485, 11.322287, 44.507621, 11.364000
 api = overpy.Overpass()
 query = f"""
 [out:json][timeout:25];
