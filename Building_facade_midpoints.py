@@ -1,3 +1,4 @@
+# Import necessary libraries
 import overpy
 import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon, LineString, Point
@@ -22,6 +23,51 @@ def close_small_gaps(line, tolerance=0.0001):
             coords[-1] = start
             return LineString(coords)
     return line
+
+# Function to get facade midpoints for each building's polygon
+def get_facade_midpoints_per_building(geometry, building_id):
+    midpoints = []
+    
+    # Handle MultiPolygon by iterating over each Polygon
+    if geometry.geom_type == 'MultiPolygon':
+        for polygon in geometry.geoms:
+            exterior_coords = list(polygon.exterior.coords)
+            
+            # Process each edge of the polygon and compute its midpoint
+            for i in range(len(exterior_coords) - 1):
+                p1 = exterior_coords[i]
+                p2 = exterior_coords[i + 1]
+                
+                # Create midpoint
+                midpoint = Point((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
+                
+                # Store facade midpoint data
+                midpoints.append({
+                    'building_id': building_id, 
+                    'geometry': midpoint, 
+                    'facade_index': i
+                })
+    # Handle single Polygon
+    elif geometry.geom_type == 'Polygon':
+        exterior_coords = list(geometry.exterior.coords)
+        
+        # Process each edge of the polygon and compute its midpoint
+        for i in range(len(exterior_coords) - 1):
+            p1 = exterior_coords[i]
+            p2 = exterior_coords[i + 1]
+            
+            # Create midpoint
+            midpoint = Point((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
+            
+            # Store facade midpoint data
+            midpoints.append({
+                'building_id': building_id, 
+                'geometry': midpoint, 
+                'facade_index': i
+            })
+    
+    return midpoints
+
 
 # Function to process OSM building elements and extract geometries
 def process_building(element):
@@ -137,36 +183,18 @@ def process_building(element):
         'name': name
     }
 
-# Function to get facade midpoints for each building's polygon
-def get_facade_midpoints_per_building(polygon, building_id):
-    midpoints = []
-    exterior_coords = list(polygon.exterior.coords)
-    
-    # Process each edge of the polygon and compute its midpoint
-    for i in range(len(exterior_coords) - 1):
-        p1 = exterior_coords[i]
-        p2 = exterior_coords[i + 1]
-        
-        # Create midpoint
-        midpoint = Point((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
-        
-        # Store facade midpoint data
-        midpoints.append({
-            'building_id': building_id, 
-            'geometry': midpoint, 
-            'facade_index': i
-        })
-        
-    return midpoints
-
 # Query OSM and process building data
-lat_min, lon_min, lat_max, lon_max = 44.481485, 11.322287, 44.507621, 11.364000
+lat_min, lon_min, lat_max, lon_max = 44.462038, 11.246704, 44.546981, 11.425919
+#lat_min, lon_min, lat_max, lon_max = 44.481485, 11.322287, 44.507621, 11.364000
+
 api = overpy.Overpass()
-query = f"""
-[out:json][timeout:25];
+
+query = """
+[out:json][timeout:180];
+area["name"="Bologna"]["admin_level"="8"];
 (
-  way["building"]({lat_min},{lon_min},{lat_max},{lon_max});
-  relation["building"]({lat_min},{lon_min},{lat_max},{lon_max});
+  way["building"](area);
+  relation["building"](area);
 );
 out body;
 >;
@@ -195,15 +223,12 @@ gdf_projected = gdf.to_crs(target_crs)
 min_area = 10  # in square meters
 gdf_projected = gdf_projected[gdf_projected.geometry.area > min_area]
 
-# Ensure all geometries are valid
-gdf = gdf[gdf.geometry.is_valid]
-
 # Process each building footprint separately
 facade_midpoints_data = []
 for index, row in gdf_projected.iterrows():  # Iterate through rows with index
     building_id = row['osm_id'] if 'osm_id' in gdf_projected.columns else index  # Use OSM ID if available, otherwise use row index
-    polygon = row['geometry']
-    midpoints = get_facade_midpoints_per_building(polygon, building_id)
+    geometry = row['geometry']
+    midpoints = get_facade_midpoints_per_building(geometry, building_id)
     facade_midpoints_data.extend(midpoints)
 
 # Create a GeoDataFrame for facade midpoints
@@ -225,7 +250,7 @@ plt.show()
 buffer_distance = 0.1  # For joining buildings
 min_segment_length = 1.0  # Minimum length for facade segments
 
-# Use spatial join to find touching buildings (faster than iterating through all pairs)
+# Use spatial join to find touching buildings
 gdf_projected['temp_id'] = gdf_projected.index
 gdf_buffered = gdf_projected.copy()
 gdf_buffered['geometry'] = gdf_projected.geometry.buffer(buffer_distance)
@@ -243,82 +268,52 @@ connected_components = list(nx.connected_components(G))
 gdf_projected['group_id'] = None
 for group_id, component in enumerate(connected_components):
     if len(component) == 1:
-        # This is a standalone building
         gdf_projected.loc[list(component), 'group_id'] = f'standalone_{group_id}'
     else:
         gdf_projected.loc[list(component), 'group_id'] = f'block_{group_id}'
 
-# Group buildings into groups
-groups = gdf_projected.groupby('group_id')
-
 # Process each group and identify facade segments along the outer edge, including building IDs
 facade_segments = []
-exterior_boundaries = []  # To store exterior boundaries for plotting
+exterior_boundaries = []
 
-for group_id, group_gdf in groups:
-    # Merge all building polygons in the group using unary_union
+for group_id, group_gdf in gdf_projected.groupby('group_id'):
     merged_polygon = unary_union(group_gdf['geometry'])
-
-    # Process the merged polygon based on its type
-    if merged_polygon.geom_type == 'MultiPolygon':
-        polygons = list(merged_polygon.geoms)
-    elif merged_polygon.geom_type == 'Polygon':
-        polygons = [merged_polygon]
-    else:
-        continue  # Skip groups with invalid geometries
+    polygons = list(merged_polygon.geoms) if merged_polygon.geom_type == 'MultiPolygon' else [merged_polygon]
 
     for polygon in polygons:
-        # Simplify the exterior boundary
         exterior_boundary = polygon.exterior
-
-        # Store the exterior boundary for plotting
         exterior_boundaries.append({'group_id': group_id, 'geometry': exterior_boundary})
-
-        # Iterate through the segments of the exterior boundary
+        
         for i in range(len(exterior_boundary.coords) - 1):
             p1 = exterior_boundary.coords[i]
             p2 = exterior_boundary.coords[i + 1]
             segment = LineString([p1, p2])
-
-            # Check if the segment is long enough and part of a building facade
+            
             if segment.length >= min_segment_length:
-                building_id = None
                 for building_id, building in group_gdf.iterrows():
                     if building['geometry'].intersects(segment):
-                        building_id = building['osm_id']
+                        midpoint = segment.centroid
+                        facade_segments.append({'group_id': group_id, 'building_id': building_id, 'geometry': midpoint})
                         break
-                if building_id:
-                    midpoint = segment.centroid
-                    facade_segments.append({
-                        'group_id': group_id, 
-                        'building_id': building_id, 
-                        'geometry': midpoint
-                    })
 
 # Create GeoDataFrames for facade segments and exterior boundaries
-facade_segments_gdf = gpd.GeoDataFrame(
-    {'geometry': [segment['geometry'] for segment in facade_segments],
-     'group_id': [segment['group_id'] for segment in facade_segments],
-     'building_id': [segment['building_id'] for segment in facade_segments]},
-    crs=gdf_projected.crs
-)
-
+facade_segments_gdf = gpd.GeoDataFrame(facade_segments, crs=gdf_projected.crs)
 exterior_boundaries_gdf = gpd.GeoDataFrame(exterior_boundaries, crs=gdf_projected.crs)
+
+# Save your data as shapefiles and GeoJSONs
+data_path = 'data/Street_view/'
+
+# Save as GeoJSON
+gdf_projected.to_file(data_path + "Bologna_buildings.geojson", driver="GeoJSON")
+exterior_boundaries_gdf.to_file(data_path + "Bologna_exterior_boundaries.geojson", driver="GeoJSON")
+facade_segments_gdf.to_file(data_path + "Bologna_facade_segments.geojson", driver="GeoJSON")
 
 # Plot all buildings, boundaries, and midpoints on one map
 fig, ax = plt.subplots(figsize=(12, 12))
-
-# Plot all building footprints in grey
 gdf_projected.plot(ax=ax, color='lightgrey', edgecolor='grey')
-
-# Plot exterior boundaries in blue
 exterior_boundaries_gdf.plot(ax=ax, color='blue', linewidth=1)
+facade_segments_gdf.plot(ax=ax, color='red', markersize=10)
 
-# Plot facade midpoints in red
-facade_segments_gdf.plot(ax=ax, color='red', markersize=5)
-
-# Add a basemap (you might need to adjust the zoom level and source)
-cx.add_basemap(ax, source=cx.providers.OpenStreetMap.Mapnik, zoom=15)
-
+#cx.add_basemap(ax, source=cx.providers.OpenStreetMap.Mapnik, zoom=15)
 plt.title("Building Footprints, Group Boundaries, and Facade Midpoints")
 plt.show()
