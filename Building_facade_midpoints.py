@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import contextily as cx
 import plotly.graph_objects as go
+import math
 
 # %% [markdown]
 # ### Helper functions
@@ -256,6 +257,13 @@ gdf_projected = gdf.to_crs(target_crs)
 min_area = 10  # in square meters
 gdf_projected = gdf_projected[gdf_projected.geometry.area > min_area]
 
+# %%
+# Plot to verify midpoints per building
+fig, ax = plt.subplots(figsize=(12, 12))
+
+# Plot all building footprints in grey
+gdf_projected.plot(ax=ax, color='lightgrey', edgecolor='grey')
+
 # %% [markdown]
 # We store the building data in a GeoDataFrame.
 # 
@@ -367,9 +375,6 @@ exterior_boundaries_gdf = gpd.GeoDataFrame(exterior_boundaries, crs=gdf_projecte
 # For each group of buildings, we compute the exterior boundary and the midpoints of building facades that are part of this boundary.
 
 # %%
-facade_segments_gdf
-
-# %%
 # Save your data as shapefiles and GeoJSONs
 data_path = 'data/Street_view/'
 
@@ -392,5 +397,260 @@ plt.show()
 
 # %% [markdown]
 # The final plot shows the buildings, their boundaries, and the calculated facade midpoints.
+
+# %%
+# Helper function to calculate azimuth between two points
+def calculate_azimuth(p1, p2):
+    lon1, lat1 = p1
+    lon2, lat2 = p2
+    # Calculate azimuth as before
+    azimuth = math.degrees(math.atan2(lon2 - lon1, lat2 - lat1))
+    azimuth = (azimuth + 360) % 360  # Normalize azimuth to [0, 360]
+
+    # Adjust for 90-degree counterclockwise shift
+    adjusted_azimuth = (azimuth - 90) % 360
+
+    return adjusted_azimuth
+
+
+# Function to classify azimuth into cardinal direction with ±45° tolerance
+def classify_orientation(azimuth):
+    directions = {
+        'N': 0,
+        'NE': 45,
+        'E': 90,
+        'SE': 135,
+        'S': 180,
+        'SW': 225,
+        'W': 270,
+        'NW': 315
+    }
+    
+    for direction, angle in directions.items():
+        if abs(azimuth - angle) <= 45:
+            return direction
+    return 'N'
+
+# Function to classify azimuth into only N, S, E, W directions with ±45° tolerance
+def classify_orientation(azimuth):
+    directions = {
+        'N': 0,
+        'E': 90,
+        'S': 180,
+        'W': 270
+    }
+    
+    for direction, angle in directions.items():
+        if abs(azimuth - angle) <= 45:  # ±45° tolerance for each direction
+            return direction
+    return 'N'
+
+# Process facade midpoints to assign orientation based on exterior boundaries
+def add_orientation_using_exterior_boundaries(facade_segments_gdf, exterior_boundaries_gdf):
+    oriented_midpoints = []
+
+    for index, row in facade_segments_gdf.iterrows():
+        midpoint = row['geometry']
+        group_id = row['group_id']
+
+        # Get the corresponding exterior boundary for this group
+        boundary_row = exterior_boundaries_gdf[exterior_boundaries_gdf['group_id'] == group_id]
+        if boundary_row.empty:
+            continue  # Skip if no matching boundary is found
+
+        boundary = boundary_row.iloc[0]['geometry']  # Get the exterior boundary LINEARRING
+
+        # Iterate over each segment of the exterior boundary
+        exterior_coords = list(boundary.coords)
+        for i in range(len(exterior_coords) - 1):
+            p1 = exterior_coords[i]
+            p2 = exterior_coords[i + 1]
+            segment = LineString([p1, p2])
+
+            # Check if the midpoint is near the segment (within a small buffer)
+            if segment.distance(midpoint) < 1e-6:  # Adjust tolerance as needed
+                azimuth = calculate_azimuth(p1, p2)
+                orientation = classify_orientation(azimuth)
+
+                # Add the orientation to the midpoint data
+                oriented_midpoints.append({
+                    'group_id': group_id,
+                    'building_id': row['building_id'],
+                    'geometry': midpoint,
+                    'orientation': orientation
+                })
+                break  # Once we find the matching segment, we can stop
+            
+    # Create a new GeoDataFrame with oriented facade midpoints
+    oriented_midpoints_gdf = gpd.GeoDataFrame(oriented_midpoints, geometry='geometry', crs=facade_segments_gdf.crs)
+    
+    return oriented_midpoints_gdf
+
+# Apply the function to classify and add orientation to midpoints based on exterior boundaries
+oriented_facade_segments_gdf = add_orientation_using_exterior_boundaries(facade_segments_gdf, exterior_boundaries_gdf)
+
+# %%
+# Plot midpoints grouped by orientation
+fig, ax = plt.subplots(figsize=(12, 12))
+gdf_projected.plot(ax=ax, color='lightgrey', edgecolor='grey')
+
+# Plot midpoints by orientation, using different colors or markers for each orientation
+colors = {'N': 'blue', 'NE': 'cyan', 'E': 'green', 'SE': 'yellow', 'S': 'orange', 'SW': 'red', 'W': 'purple', 'NW': 'pink'}
+colors = {'N': 'blue', 'E': 'green', 'S': 'red', 'W': 'orange'}
+for orientation, group in oriented_facade_segments_gdf.groupby('orientation'):
+    group.plot(ax=ax, color=colors.get(orientation, 'black'), markersize=10, label=orientation)
+
+plt.legend()
+plt.title("Facade Midpoints by Orientation")
+plt.show()
+
+# %%
+# Process boundary segments to assign orientation based on exterior boundaries
+def add_orientation_to_segments(exterior_boundaries_gdf):
+    oriented_segments = []
+
+    for index, row in exterior_boundaries_gdf.iterrows():
+        boundary = row['geometry']  # Get the exterior boundary LINEARRING
+        group_id = row['group_id']
+
+        # Iterate over each segment of the exterior boundary
+        exterior_coords = list(boundary.coords)
+        for i in range(len(exterior_coords) - 1):
+            p1 = exterior_coords[i]
+            p2 = exterior_coords[i + 1]
+            segment = LineString([p1, p2])
+
+            # Calculate the azimuth and orientation for the segment
+            azimuth = calculate_azimuth(p1, p2)
+            orientation = classify_orientation(azimuth)
+
+            # Add the orientation to the boundary segment data
+            oriented_segments.append({
+                'group_id': group_id,
+                'geometry': segment,
+                'orientation': orientation
+            })
+
+    # Create a new GeoDataFrame with oriented segments
+    oriented_segments_gdf = gpd.GeoDataFrame(oriented_segments, geometry='geometry', crs=exterior_boundaries_gdf.crs)
+    
+    return oriented_segments_gdf
+
+# Apply the function to classify and add orientation to boundary segments
+oriented_segments_gdf = add_orientation_to_segments(exterior_boundaries_gdf)
+
+# %%
+# Plot the segments, coloring by orientation
+fig, ax = plt.subplots(figsize=(12, 12))
+
+# Plot buildings or blocks if needed (optional, for context)
+gdf_projected.plot(ax=ax, color='lightgrey', edgecolor='grey')
+
+# Plot the oriented segments, color-coded by their orientation
+colors = {'N': 'blue', 'E': 'green', 'S': 'red', 'W': 'orange'}
+for orientation, group in oriented_segments_gdf.groupby('orientation'):
+    group.plot(ax=ax, color=colors[orientation], linewidth=2, label=orientation)
+
+# Add legend
+plt.legend(title="Orientation")
+plt.title("Building Boundaries Colored by Orientation")
+plt.show()
+
+# %%
+# Plot the segments and midpoints, coloring by orientation
+fig, ax = plt.subplots(figsize=(12, 12))
+
+# Plot buildings or blocks for context
+gdf_projected.plot(ax=ax, color='lightgrey', edgecolor='grey', alpha=0.7)  # Slight transparency for context
+
+# Define colors for orientations
+colors = {'N': 'blue', 'E': 'green', 'S': 'red', 'W': 'orange'}
+
+# Plot the oriented segments (building boundaries) and midpoints together
+for orientation, group in oriented_segments_gdf.groupby('orientation'):
+    # Plot boundary segments
+    group.plot(ax=ax, color=colors[orientation], linewidth=2)
+    
+    # Plot midpoints with the same color but different marker
+    oriented_facade_segments_gdf.groupby('orientation').get_group(orientation).plot(ax=ax, color=colors[orientation], markersize=15, marker='x')
+
+# Add a combined legend only once for both lines and midpoints
+legend_labels = [plt.Line2D([0], [0], color=colors[direction], lw=2, marker='x', label=f'{direction}')
+                 for direction in colors]
+ax.legend(handles=legend_labels, title="Orientation", loc='upper right')
+
+# Improve title and axis display
+plt.title("Building Boundaries and Midpoints Colored by Orientation", fontsize=14)
+
+# Show the plot
+plt.show()
+
+
+# %%
+from tqdm import tqdm
+from shapely.ops import nearest_points
+
+# Ensure that building_id in oriented_facade_segments_gdf matches the index type of gdf_projected
+oriented_facade_segments_gdf['building_id'] = oriented_facade_segments_gdf['building_id'].astype(gdf_projected.index.dtype)
+
+# Initialize an empty list to store the final results
+matched_rows = []
+
+# Iterate over each unique group_id and track progress using tqdm
+for group in tqdm(oriented_facade_segments_gdf['group_id'].unique(), desc="Processing Groups"):
+    # Select all midpoints and edges for the current group
+    group_midpoints = oriented_facade_segments_gdf[oriented_facade_segments_gdf['group_id'] == group]
+    group_edges = oriented_segments_gdf[oriented_segments_gdf['group_id'] == group]
+    
+    # Iterate over each midpoint in the group
+    for idx, midpoint_row in group_midpoints.iterrows():
+        midpoint = midpoint_row['geometry']  # Get the midpoint geometry
+        
+        # Find the closest edge to this midpoint
+        closest_edge = None
+        min_distance = float('inf')
+        for _, edge_row in group_edges.iterrows():
+            edge = edge_row['geometry']  # Get the edge geometry
+            # Calculate the distance between the midpoint and the edge
+            distance = midpoint.distance(edge)
+            if distance < min_distance:
+                min_distance = distance
+                closest_edge = edge_row
+
+        # Get the building details from gdf_projected using building_id
+        building_id = midpoint_row['building_id']
+        building_info = gdf_projected.loc[building_id]  # Now building_id should match the type of gdf_projected's index
+
+        # Add the matched row (midpoint + closest edge + osm_id) to the result
+        matched_rows.append({
+            'group_id': group,
+            'building_id': building_id,
+            'osm_id': building_info['osm_id'],  # Get osm_id from gdf_projected
+            'geometry_midpoint': midpoint,
+            'orientation_midpoint': midpoint_row['orientation'],
+            'geometry_outer_edge': closest_edge['geometry'],
+            'orientation_outer_edge': closest_edge['orientation']
+        })
+
+
+# %%
+# Create the first GeoDataFrame with geometry_midpoint as the active geometry
+gdf_midpoint  = gpd.GeoDataFrame(matched_rows, geometry='geometry_midpoint', crs=oriented_facade_segments_gdf.crs)
+# Create the second GeoDataFrame with geometry_outer_edge as the active geometry
+gdf_outer_edge  = gpd.GeoDataFrame(matched_rows, geometry='geometry_outer_edge', crs=oriented_facade_segments_gdf.crs)
+
+# %%
+# Save gdf_midpoint as GeoJSON
+gdf_midpoint.to_file("data/Street_view/facade_midpoints.geojson", driver="GeoJSON")
+
+# Save gdf_outer_edge as GeoJSON
+gdf_outer_edge.to_file("data/Street_view/facade_outer_edges.geojson", driver="GeoJSON")
+
+# %%
+# Save gdf_midpoint as Shapefile
+gdf_midpoint.to_file("data/Street_view/facade_midpoints.shp")
+
+# Save gdf_outer_edge as Shapefile
+gdf_outer_edge.to_file("data/Street_view/facade_outer_edges.shp")
 
 
