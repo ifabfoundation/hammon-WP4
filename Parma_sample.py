@@ -739,6 +739,10 @@ gdf_midpoint  = gpd.GeoDataFrame(matched_rows, geometry='geometry_midpoint', crs
 gdf_outer_edge  = gpd.GeoDataFrame(matched_rows, geometry='geometry_outer_edge', crs=oriented_facade_segments_gdf.crs)
 
 # %%
+# keep only S and north orientation
+gdf_midpoint = gdf_midpoint[gdf_midpoint['orientation_midpoint'].isin(['S', 'N'])]
+
+# %%
 gdf_midpoint
 
 # %%
@@ -747,6 +751,98 @@ import numpy as np
 import math
 import geopandas as gpd
 import matplotlib.pyplot as plt
+
+# %%
+# Find the relevant pictures
+gdf = gpd.read_file('data/DEMO_TRACCIATO/RUN.shp')
+
+# Define the values to filter for in the 'RUN' column
+run_values = ['116', '117']
+
+# Filter the GeoDataFrame where the 'RUN' column matches any of the values in run_values
+gdf_subset = gdf[gdf['RUN'].isin(run_values)]
+
+# %%
+gdf_subset
+
+# %%
+# Plot the segments and midpoints, coloring by orientation
+fig, ax = plt.subplots(figsize=(12, 12))
+
+# Plot buildings or blocks for context
+gdf_projected.plot(ax=ax, color='lightgrey', edgecolor='grey', alpha=0.7)  # Slight transparency for context
+
+# Define colors for orientations
+colors = {'N': 'blue', 'E': 'green', 'S': 'red', 'W': 'orange'}
+
+# Plot the oriented segments (building boundaries) and midpoints together
+for orientation, group in oriented_segments_gdf.groupby('orientation'):
+    # Plot boundary segments
+    group.plot(ax=ax, color=colors[orientation], linewidth=2)
+    
+    # Plot midpoints with the same color but different marker
+    oriented_facade_segments_gdf.groupby('orientation').get_group(orientation).plot(ax=ax, color=colors[orientation], markersize=15, marker='x')
+
+# Add a combined legend only once for both lines and midpoints
+legend_labels = [plt.Line2D([0], [0], color=colors[direction], lw=2, marker='x', label=f'{direction}')
+                 for direction in colors]
+ax.legend(handles=legend_labels, title="Orientation", loc='upper right')
+
+# Plot the subset points and their labels
+gdf_subset.plot(ax=ax, color='black', markersize=1)
+
+# Add text labels for points in gdf_subset
+for x, y, label in zip(gdf_subset.geometry.x, gdf_subset.geometry.y, gdf_subset['FOTO']):  # Assuming 'name' is the column you want to plot
+    ax.text(x, y, label[8:11] + '_' + label[16:18], fontsize=6, ha='right', color='black')
+
+# Improve title and axis display
+plt.title("Building Boundaries and Midpoints Colored by Orientation", fontsize=14)
+
+# Show the plot
+plt.show()
+
+
+# %%
+# Create an empty list to store the results
+combined_rows = []
+
+# Iterate over each point in gdf_midpoint
+for i, row in gdf_midpoint.iterrows():
+    # Get the geometry (point) from gdf_midpoint
+    point_gdf_midpoint = row['geometry_midpoint']
+
+    # Calculate the distance from this point to every point in gdf_subset
+    distances = gdf_subset.geometry.distance(point_gdf_midpoint)
+
+    # Find the index of the minimum distance (closest point)
+    min_distance_index = distances.idxmin()
+    min_distance_value = distances.min()
+
+    # Get the closest row from gdf_subset
+    closest_row = gdf_subset.loc[min_distance_index]
+
+    # Combine the row from gdf_midpoint and the closest row from gdf_subset
+    combined_row = pd.concat([row, closest_row], axis=0)
+
+    # Append the combined row to the results list
+    combined_rows.append(combined_row)
+
+# Convert the list of combined rows into a new GeoDataFrame
+gdf_combined = pd.DataFrame(combined_rows)
+
+# Convert to GeoDataFrame if needed
+gdf_combined = gpd.GeoDataFrame(gdf_combined, geometry='geometry_midpoint', crs=gdf_midpoint.crs)
+
+# %%
+gdf_combined
+
+# %%
+# Extract coordinates of geometry_midpoint as separate columns
+gdf_combined['midpoint_x'] = gdf_combined['geometry_midpoint'].apply(lambda point: point.x)
+gdf_combined['midpoint_y'] = gdf_combined['geometry_midpoint'].apply(lambda point: point.y)
+
+# Save to GeoJSON
+gdf_combined.to_file("data/Street_view/Preprocessed_to_use_for_picture_extraction.geojson", driver="GeoJSON")
 
 # %%
 def calculate_yaw_pitch(camera_coords, target_coords):
@@ -881,52 +977,61 @@ def calculate_vectors(camera_coords, target_coords):
     
     return v1, v2
 
-# %%
-# Find the relevant pictures
-gdf = gpd.read_file('data/DEMO_TRACCIATO/RUN.shp')
+def adjust_yaw_based_on_position(camera_coords, midpoint_coords, scaling_factor=5):
+    """
+    Adjust yaw based on how far the camera is positioned relative to the midpoint.
+    The adjustment is proportional to the horizontal distance (delta_x) between the camera and the midpoint.
+    
+    Parameters:
+    - camera_coords: (x, y, z) of the camera
+    - midpoint_coords: (x, y, z) of the midpoint
+    - scaling_factor: How much yaw should be adjusted per unit of horizontal distance
+    
+    Returns:
+    - yaw adjustment (in degrees)
+    """
+    x1, _, __ = camera_coords
+    x2, _, __ = midpoint_coords
+    
+    # Calculate the difference in x (horizontal axis)
+    delta_x = x2 - x1
 
-# Define the values to filter for in the 'RUN' column
-run_values = ['116', '117']
+    # Proportional yaw adjustment based on delta_x and the scaling factor
+    yaw_adjustment = scaling_factor * delta_x
 
-# Filter the GeoDataFrame where the 'RUN' column matches any of the values in run_values
-gdf_subset = gdf[gdf['RUN'].isin(run_values)]
+    print(f"Delta_x: {delta_x}, Yaw adjustment: {yaw_adjustment}")
 
-# %%
-gdf_midpoint
+    return yaw_adjustment
 
-# %%
-# Create an empty list to store the results
-combined_rows = []
+def adjust_fov_based_on_distance(camera_coords, midpoint_coords, calculated_fov):
+    """
+    Adjust the field of view based on the distance between the camera and the midpoint.
+    Wider FoV (e.g., 110) is used when very close, and calculated FoV when farther away.
+    
+    Parameters:
+    - camera_coords: (x, y, z) of the camera
+    - midpoint_coords: (x, y, z) of the midpoint
+    - calculated_fov: the dynamically calculated FoV based on angle
+    
+    Returns:
+    - Adjusted FoV
+    """
+    x1, y1, _ = camera_coords
+    x2, y2, _ = midpoint_coords
+    
+    # Calculate the Euclidean distance between the camera and the midpoint
+    distance = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-# Iterate over each point in gdf_midpoint
-for i, row in gdf_midpoint.iterrows():
-    # Get the geometry (point) from gdf_midpoint
-    point_gdf_midpoint = row['geometry_midpoint']
+    print(f"Distance: {distance}")
+    
+    if 3.5 < distance < 5:  # If very close, set a wider FoV (e.g., 110 degrees)
+        return 100, distance
+    elif distance <3.5:
+        return 110, distance
+    else:
+        # Use the dynamically calculated FoV if the distance is larger
+        return calculated_fov, distance
 
-    # Calculate the distance from this point to every point in gdf_subset
-    distances = gdf_subset.geometry.distance(point_gdf_midpoint)
-
-    # Find the index of the minimum distance (closest point)
-    min_distance_index = distances.idxmin()
-    min_distance_value = distances.min()
-
-    # Get the closest row from gdf_subset
-    closest_row = gdf_subset.loc[min_distance_index]
-
-    # Combine the row from gdf_midpoint and the closest row from gdf_subset
-    combined_row = pd.concat([row, closest_row], axis=0)
-
-    # Append the combined row to the results list
-    combined_rows.append(combined_row)
-
-# Convert the list of combined rows into a new GeoDataFrame
-gdf_combined = pd.DataFrame(combined_rows)
-
-# Convert to GeoDataFrame if needed
-gdf_combined = gpd.GeoDataFrame(gdf_combined, geometry='geometry_midpoint', crs=gdf_midpoint.crs)
-
-# %%
-gdf_combined
 
 # %%
 # Ensure all previous figures are closed
@@ -940,15 +1045,29 @@ images_folder = 'data/PANO/'
 for i, row in gdf_combined.iterrows():
     # Coordinates for camera and target
     camera_coords = (row.loc['X'], row.loc['Y'], row.loc['Z'])  # Camera position (x, y, z)
-    target_coords = (row.loc['geometry_midpoint'].x, row.loc['geometry_midpoint'].y, row.loc['Z'] + 1)  # Target position (x, y, z)
+    target_coords = (row.loc['geometry_midpoint'].x, row.loc['geometry_midpoint'].y, row.loc['Z'])  # Target position (x, y, z)
     
     # Calculate the yaw and pitch based on the coordinates
     yaw, pitch = calculate_yaw_pitch(camera_coords, target_coords)
 
-    # Calculate dynamic FoV
+    # adjust pitch
+    pitch_adjustment = 25  # degrees
+    pitch += pitch_adjustment
+
+    # Adjust yaw based on how far the camera is from the midpoint horizontally
+    yaw_adjustment = adjust_yaw_based_on_position(camera_coords, target_coords, scaling_factor=1)
+    #yaw += yaw_adjustment  # Apply the yaw adjustment
+
+    # Calculate dynamic FoV based on vectors
     v1, v2 = calculate_vectors(camera_coords, target_coords)
-    fov = calculate_dynamic_fov(v1, v2)
-    fov = 90
+    calculated_fov = calculate_dynamic_fov(v1, v2)
+
+    # Adjust FoV based on the distance between camera and midpoint
+    fov, distance = adjust_fov_based_on_distance(camera_coords, target_coords, calculated_fov)
+    print(fov)
+
+    if distance > 20:
+        break
 
     # Path to the image
     path = row.loc['PATH']
@@ -961,7 +1080,6 @@ for i, row in gdf_combined.iterrows():
     rgb_image = convert_bgr_to_rgb(image)
 
     # Parameters for perspective projection
-    # fov = 100  # Field of view
     roll = row.loc['Roll']
 
     output_image_shape = 'squared'  # 'squared', 'horizontal' or 'vertical'
@@ -988,7 +1106,133 @@ for i, row in gdf_combined.iterrows():
     # Close the figure to prevent old plots from showing up again
     plt.close('all')  # Close all figures
 
+
 # %%
+def calculate_new_target(midpoint_coords, facade_start, facade_end, camera_coords, orientation):
+    """
+    Calculate a new target based on the camera's position relative to the midpoint and facade's start or end,
+    depending on whether the camera surpasses the midpoint along the relevant axis (x or y).
+    
+    Parameters:
+    - midpoint_coords: (x, y) coordinates of the midpoint (ignore z)
+    - facade_start: (x, y) coordinates of one endpoint of the facade segment
+    - facade_end: (x, y) coordinates of the other endpoint of the facade segment
+    - camera_coords: (x, y) coordinates of the camera
+    - orientation: The facade's orientation (N, S -> x-axis; E, W -> y-axis)
+    
+    Returns:
+    - new_target_coords: The new target coordinates (x, y) or the original midpoint if the condition isn't met.
+    """
+    # Convert to numpy arrays for vector calculations
+    midpoint = np.array(midpoint_coords[:2])
+    facade_start = np.array(facade_start[:2])
+    facade_end = np.array(facade_end[:2])
+    camera = np.array(camera_coords[:2])
+
+    # Calculate the length of the facade segment
+    facade_length = np.linalg.norm(facade_end - facade_start)
+
+    # Determine if we should compare x-coordinates (for N/S) or y-coordinates (for E/W)
+    if orientation in ['N', 'S']:
+        # Compare x-coordinates
+        axis_diff = camera[0] - midpoint[0]  # Negative if before the midpoint, positive if after
+    elif orientation in ['E', 'W']:
+        # Compare y-coordinates
+        axis_diff = camera[1] - midpoint[1]  # Negative if before the midpoint, positive if after
+    else:
+        return midpoint  # Return the original midpoint if orientation is unknown
+
+    print(f"Axis difference: {axis_diff}, Facade half-length: {facade_length / 2}")
+
+    # Calculate the distance between the camera and the two extremes of the facade
+    dist_to_start = np.linalg.norm(facade_start - camera)
+    dist_to_end = np.linalg.norm(facade_end - camera)
+
+    if np.abs(axis_diff) > facade_length / 2:
+        # Choose the closest point (either facade_start or facade_end)
+        if dist_to_start < dist_to_end:
+            new_target = (midpoint + facade_start) / 2  # Midpoint between facade midpoint and facade_end
+        else:
+            new_target = (midpoint + facade_end) / 2  # Midpoint between facade midpoint and facade_start
+    else:
+        new_target = midpoint # Camera is within the threshold, use the original midpoint
+
+    print(f"New target: {new_target}, Midpoint: {midpoint}")
+
+    return new_target
+
+
+for i, row in gdf_combined.iterrows():
+    # Camera and target coordinates (2D only, ignoring z)
+    camera_coords = (row.loc['X'], row.loc['Y'], row.loc['Z'])  # Camera position (x, y, z)
+    midpoint_coords = (row.loc['geometry_midpoint'].x, row.loc['geometry_midpoint'].y, row.loc['Z'])  # Target position (x, y, z)
+
+    # Facade segment extremes (ensure only x, y are considered)
+    facade_start = (row.loc['geometry_outer_edge'].coords[0][:2])  # One end of the facade segment (x, y)
+    facade_end = (row.loc['geometry_outer_edge'].coords[-1][:2])  # The other end of the facade segment (x, y)
+
+    # Retrieve facade orientation from the data (assumed to be in row['orientation_outer_edge'])
+    orientation = row.loc['orientation_outer_edge']
+
+    # Calculate a new target based on the facade segment and camera's position
+    new_target_coords = calculate_new_target(midpoint_coords, facade_start, facade_end, camera_coords, orientation)
+    new_target_coords = (new_target_coords[0], new_target_coords[1], row.loc['Z'])  # Reintroduce z coordinate
+    
+    # Calculate yaw and pitch using the new target
+    yaw, pitch = calculate_yaw_pitch(camera_coords, new_target_coords)
+
+    # Adjust pitch (fixed value for now)
+    pitch_adjustment = 25  # degrees
+    pitch += pitch_adjustment
+
+    # Calculate dynamic FoV based on vectors
+    v1, v2 = calculate_vectors(camera_coords, new_target_coords)
+    calculated_fov = calculate_dynamic_fov(v1, v2)
+
+    # Adjust FoV based on the distance between camera and midpoint
+    fov, distance = adjust_fov_based_on_distance(camera_coords, midpoint_coords, calculated_fov)
+
+    print(calculated_fov, fov)
+
+    if distance > 20:
+        break  # Skip further processing if the camera is too far from the target
+
+    # Path to the image
+    path = row.loc['PATH']
+    run = row.loc['RUN']
+    image_name = row.loc['FOTO']
+    image_path = '{}{}/{}/{}'.format(images_folder, path, run, image_name)
+    image = cv2.imread(image_path)
+
+    # Convert the original image to RGB before any further processing
+    rgb_image = convert_bgr_to_rgb(image)
+
+    # Parameters for perspective projection
+    roll = row.loc['Roll']
+
+    output_image_shape = 'squared'  # 'squared', 'horizontal' or 'vertical'
+    if output_image_shape == 'squared':
+        output_width = 1024
+        output_height = 1024
+    elif output_image_shape == 'horizontal':
+        output_width = 1024
+        output_height = 512
+    elif output_image_shape == 'vertical':
+        output_width = 512
+        output_height = 1024
+
+    # Apply the transformation
+    output_image = enhanced_equirectangular_to_perspective(rgb_image, fov, yaw, pitch, roll, output_height, output_width)
+
+    print(row.loc['group_id'], row.loc['building_id'], row.loc['osm_id'], row.loc['geometry_midpoint'], row.loc['orientation_midpoint'], image_name)
+
+    # Display the transformed image
+    plt.imshow(output_image)
+    plt.axis('off')  # Hide the axes
+    plt.show()
+
+    # Close the figure to prevent old plots from showing up again
+    plt.close('all')  # Close all figures
 
 
 # %%
