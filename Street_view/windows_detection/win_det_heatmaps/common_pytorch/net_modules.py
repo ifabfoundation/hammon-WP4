@@ -2,6 +2,7 @@ import os
 import logging
 import torch
 import torch.nn as nn
+import csv
 from collections import defaultdict
 import numpy as np
 from torch.nn.parallel.scatter_gather import gather
@@ -218,27 +219,34 @@ def inferNet(infer_data_loader, network, merge_hm_flip_func, merge_tag_flip_func
             print(e, '  ', os.path.basename(imdb_list[n_s]['image']))
 
     # AGGIUNTO DA ME
-    print(count_windows_per_row(windows_list_with_score))
+    total_windows, total_floors = get_floor_and_windows_number(windows_list_with_score, imdb_list)
+   
+    # Export CSV
+    export_to_csv(total_floors, 'total_buildings_floors.csv', ['building','floors'])
+
     # 2. Infer or Evaluate
     facade.plot(windows_list_with_score, imdb_list, final_output_path)
 
-def count_windows_per_row(windows_list):
+def get_floor_and_windows_number(windows_list, imdb_list):
     """
-    Conta il numero di finestre per riga basandosi sulla posizione media del centro delle finestre.
+    Count the number of windows per row based on the average position of the center of the windows.
+    Count the number of floors
     """
 
-    results = []
-    for window_group in windows_list:  # Iteriamo sulla lista esterna
+    result_windows_number = []
+    result_floor_number = []
+    for window_group, data in zip(windows_list, imdb_list):  # Iterate on the external list.
         
+        building_name = os.path.basename(data['image'])
         row_dict = defaultdict(list)
-        for win in window_group:  # Ora iteriamo sui dizionari interni
-            positions = np.array(win['position'])  # Estrarre l'array delle coordinate (4x3)
-            y_center = np.mean(positions[:, 1])  # Calcola il centro verticale della finestra
+        for win in window_group:  # Now we iterate over the internal dictionaries.
+            positions = np.array(win['position'])  # Extract the array of coordinates (4x3).
+            y_center = np.mean(positions[:, 1])  # Calculates the vertical center of the window
 
-            # Raggruppa finestre con una soglia di tolleranza per la stessa riga
+            # Group windows with a tolerance threshold for the same row.
             found_row = False
             for key in row_dict.keys():
-                if abs(y_center - key) < 50:  # Soglia per identificare la stessa riga
+                if abs(y_center - key) < 50:  # Threshold to identify the same row
                     row_dict[key].append(win)
                     found_row = True
                     break
@@ -246,8 +254,18 @@ def count_windows_per_row(windows_list):
             if not found_row:
                 row_dict[y_center] = [win]
 
-        # Conta le finestre per riga
+        # Count windows per line
         num_windows_per_row = {round(y): len(row_dict[y]) for y in row_dict}
-        results.append(num_windows_per_row)
+        
+        result_windows_number.append({'building': building_name, 'windows': num_windows_per_row})
+        result_floor_number.append({'building': building_name, 'floors': len(row_dict)})
 
-    return results
+    return result_windows_number, result_floor_number
+
+# Export to CSV
+def export_to_csv(data, filename, fields):
+    
+    with open(filename, 'w', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(data)
