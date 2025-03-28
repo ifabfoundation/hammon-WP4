@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 # Load the GeoJSON
 try:
-    gdf_combined = gpd.read_file('data/Street_view/Preprocessed_to_use_for_picture_extraction.geojson')
+    gdf_combined = gpd.read_file('../data/Street_view/Preprocessed_to_use_for_picture_extraction.geojson')
     
     # Recreate geometry_midpoint from midpoint_x and midpoint_y
     gdf_combined['geometry_midpoint'] = gdf_combined.apply(lambda row: Point(row['midpoint_x'], row['midpoint_y']), axis=1)
@@ -52,7 +52,6 @@ def calculate_yaw_pitch(camera_coords, target_coords):
     pitch_deg = np.degrees(pitch)
     
     return yaw_deg, pitch_deg
-
 
 def enhanced_equirectangular_to_perspective(img, fov, theta, phi, roll, height, width, output_scale=2):
     fov, theta, phi, roll = map(np.radians, (fov, theta, phi, roll))
@@ -104,7 +103,6 @@ def enhanced_equirectangular_to_perspective(img, fov, theta, phi, roll, height, 
     
     return output.astype(np.uint8)
 
-
 def calculate_dynamic_fov(v1, v2):
     v1 = np.array(v1)
     v2 = np.array(v2)
@@ -118,7 +116,6 @@ def calculate_dynamic_fov(v1, v2):
     fov = min(fov_degrees, 100)
     return fov
 
-
 def calculate_vectors(camera_coords, target_coords):
     camera = np.array(camera_coords)
     target = np.array(target_coords)
@@ -127,7 +124,6 @@ def calculate_vectors(camera_coords, target_coords):
     v1 = np.array([1, 0, 0])
     
     return v1, v2
-
 
 def project_point_onto_segment(camera, facade_start, facade_end):
     camera = np.array(camera)
@@ -147,10 +143,8 @@ def project_point_onto_segment(camera, facade_start, facade_end):
     projected_point = facade_start + t * AB
     return projected_point
 
-
 def convert_bgr_to_rgb(image):
     return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
 
 def calculate_pitch_adjustment_based_on_distance(camera_coords, midpoint_coords, base_pitch):
     x1, y1, _ = camera_coords
@@ -165,7 +159,6 @@ def calculate_pitch_adjustment_based_on_distance(camera_coords, midpoint_coords,
     
     return pitch_adjustment
 
-# Functions for vanishing point analysis
 def compute_edgelets(image, sigma=3):
     """Create edgelets as in the paper."""
     # Ensure the image has 3 channels
@@ -201,7 +194,6 @@ def compute_edgelets(image, sigma=3):
 
     return (locations, directions, strengths)
 
-
 def filter_edgelets_by_orientation(edgelets, orientation='horizontal', threshold=15):
     """Filter edgelets based on their orientation."""
     locations, directions, strengths = edgelets
@@ -222,7 +214,6 @@ def filter_edgelets_by_orientation(edgelets, orientation='horizontal', threshold
     
     return (locations[mask], directions[mask], strengths[mask])
 
-
 def evaluate_horizontal_parallelism(edgelets):
     """Evaluate how parallel the horizontal edgelets are."""
     _, directions, strengths = edgelets
@@ -242,7 +233,6 @@ def evaluate_horizontal_parallelism(edgelets):
     parallelism_score = 1 / (1 + weighted_std)
     
     return parallelism_score
-
 
 def evaluate_horizontal_alignment(edgelets):
     """Evaluate how well-aligned the horizontal edgelets are with true horizontal."""
@@ -265,7 +255,6 @@ def evaluate_horizontal_alignment(edgelets):
     alignment_score = 1 / (1 + weighted_avg_deviation)
     
     return alignment_score
-
 
 def evaluate_perspective_image(image):
     """Evaluate a perspective image for rectification suitability."""
@@ -396,27 +385,35 @@ def visualize_horizontal_edgelets(image, edgelets):
 # UPDATED FUNCTIONS FOR IMAGE SAVING
 
 def save_perspective_image(image, filepath):
-    """Save the perspective image using OpenCV."""
+    """Save the perspective image using matplotlib."""
     try:
         print(f"Saving perspective image to {filepath}")
-        result = cv2.imwrite(filepath, image)
-        print(f"OpenCV save result: {result}")
         
-        # If OpenCV fails, try PIL as a fallback
-        if not result:
-            print("OpenCV failed, trying PIL...")
-            pil_img = Image.fromarray(image)
-            pil_img.save(filepath)
-            print("PIL save successful")
+        # Use matplotlib's savefig for perspective images
+        plt.figure(figsize=(10, 10))
+        plt.imshow(image)
+        plt.axis('off')
+        plt.tight_layout(pad=0)
+        plt.savefig(filepath, bbox_inches='tight', pad_inches=0, dpi=100)
+        plt.close()
         
         if os.path.exists(filepath):
-            print(f"File saved successfully: {os.path.getsize(filepath)} bytes")
+            print(f"Perspective image saved successfully: {os.path.getsize(filepath)} bytes")
             return True
         else:
-            print("File not saved!")
+            print("Perspective image not saved!")
             return False
     except Exception as e:
         print(f"Error saving perspective image: {e}")
+        # Try alternate methods if matplotlib fails
+        try:
+            print("Trying alternate method with PIL...")
+            pil_img = Image.fromarray(image)
+            pil_img.save(filepath)
+            print("PIL save successful")
+            return True
+        except Exception as e2:
+            print(f"PIL fallback also failed: {e2}")
         return False
 
 def save_visualization_image(image, filepath):
@@ -541,9 +538,9 @@ print("Starting script execution...")
 print("Setting up output folders...")
 plt.close('all')
 
-images_folder = 'data/PANO_new/'
-output_folder = 'data/Street_view/Output_images_vp/'
-visualization_folder = 'data/Street_view/Output_visualization/'
+images_folder = '../data/PANO_new/'
+output_folder = '../data/Street_view/Output_images_vp/'
+visualization_folder = '../data/Street_view/Output_visualization/'
 
 # Ensure output folders exist
 os.makedirs(output_folder, exist_ok=True)
@@ -558,7 +555,7 @@ if 'vp_scores' not in gdf_combined.columns:
 
 # Process only a subset of buildings for testing
 # Change [:5] to [:] to process all buildings
-for i, row in list(gdf_combined.iterrows())[:5]:  
+for i, row in list(gdf_combined.iterrows())[:]:  
     print(f"\nProcessing building {i+1}/{len(gdf_combined)}")
     
     # Find the best perspective image
@@ -627,6 +624,6 @@ gdf_combined = gdf_combined.drop(columns=['geometry_midpoint'])
 gdf_combined = gdf_combined.set_geometry('geometry')
 
 # Save the GeoDataFrame to a file
-gdf_combined.to_file('data/Street_view/Preprocessed_with_vp_filenames.geojson', driver='GeoJSON')
+gdf_combined.to_file('../data/Street_view/Preprocessed_with_vp_filenames.geojson', driver='GeoJSON')
 
 print("Script execution completed successfully")
