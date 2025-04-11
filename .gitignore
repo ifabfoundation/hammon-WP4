@@ -56,3 +56,6 @@ coverage.xml
 
 # Pip dependency resolver
 deps.json
+
+# Node modules folder
+*/node_modules/
