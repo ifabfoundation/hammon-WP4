@@ -1,0 +1,12 @@
+.DS_Store
+annotations/
+data/
+logs/
+hh/
+nodes/
+old/
+.idea/
+project_windows.py
+project_facades.py
+combine_all_jsons.py
+useless.py
