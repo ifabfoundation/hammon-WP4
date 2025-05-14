@@ -166,13 +166,13 @@ def project_face(num, degree):
     # p1 = (enu @ lla2xyz(lat=edge[1][1], lon=edge[1][0], alt=ground))[:3]
 
     # Definizione delle dimensioni fisiche della facciata in metri
-    height = 20  # Altezza della facciata in metri (abbassare per avere un'immagine più piccola)
+    height = 10  # Altezza della facciata in metri (abbassare per avere un'immagine più piccola)
     width = 20   # Larghezza della facciata in metri (abbassare per avere un'immagine più piccola)
     mpp = 0.0125  # Metri per pixel - definisce la risoluzione dell'immagine risultante
     
     # Definizione dei punti che rappresentano il bordo superiore della facciata
-    p0 = np.array([-10., 10., 0.])  # Punto iniziale del bordo superiore: coordinate (x=-10, y=10, z=0)
-    p1 = np.array([10., 10, 0.])    # Punto finale del bordo superiore: coordinate (x=10, y=10, z=0)
+    p0 = np.array([-10., 5., 0.])  # Punto iniziale del bordo superiore: coordinate (x=-10, y=10, z=0)
+    p1 = np.array([10., 5, 0.])    # Punto finale del bordo superiore: coordinate (x=10, y=10, z=0)
     middle = (p0 + p1) / 2          # Punto centrale del bordo superiore: media tra p0 e p1
 
     # Definizione dei vettori di orientamento della facciata
@@ -519,11 +519,11 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
 
                     ########### Codice commentato: salvataggio delle informazioni di heading e pitch
                     # Questa parte salverebbe le coordinate di heading e pitch per ogni pixel dell'immagine finale
-                    # ttttt_heading_pitch = save_heading_pitch_json(tmp_coordinates, im, m_tmp, n_tmp)
-                    # ttttt_heading_pitch_json_path = rendering_img_base + '_VP_{}_{}_heading_pitch.npy'.format(i, j)
-                    # # with open(ttttt_heading_pitch_json_path, 'w') as f:
-                    # #     json.dump(ttttt_heading_pitch.tolist(), f)
-                    # np.save(ttttt_heading_pitch_json_path, ttttt_heading_pitch)
+                    ttttt_heading_pitch = save_heading_pitch_json(tmp_coordinates, im, m_tmp, n_tmp)
+                    ttttt_heading_pitch_json_path = rendering_img_base + '_VP_{}_{}_heading_pitch.npy'.format(i, j)
+                    with open(ttttt_heading_pitch_json_path, 'w') as f:
+                        json.dump(ttttt_heading_pitch.tolist(), f)
+                    np.save(ttttt_heading_pitch_json_path, ttttt_heading_pitch)
                     #########################################
 
                     # Converte le coordinate 3D in coordinate 2D nell'immagine panoramica
