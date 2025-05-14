@@ -28,7 +28,7 @@ from Panos.Pano_project import project_facade_for_refine
 #np.random.seed(1)
 
 plot_redundant = True
-save_directly = True
+save_directly = False
 
 root = 'Pano_new'
 
