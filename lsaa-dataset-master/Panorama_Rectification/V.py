@@ -68,8 +68,8 @@ def V(im, width, height, focal, params, tmp_count):
     # Reference https://github.com/primetang/pylsd
 
     gray = np.asarray(im.convert('L'))
-    lines = lsd(gray, tmp_count)
-    lsd_output = lines[:, :4]
+    lines = lsd(gray, tmp_count) # Detection dei segmenti
+    lsd_output = lines[:, :4] # 2d np.array, prende solo le coordinate dei segmenti
 
     # import scipy.io as sio
     # mat_lsd = sio.loadmat('lsd.mat')

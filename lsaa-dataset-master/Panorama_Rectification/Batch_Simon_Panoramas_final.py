@@ -65,6 +65,7 @@ for im_path in imageList:
     thread_num = 1
     thread = str(thread_num) + '/'
     tmp_folder = os.path.join(root, Country_city, 'tmp', task, thread)
+    tmp_folder_ifab = os.path.join(root, Country_city, 'tmp_ifab', task, thread)
 
     if not os.path.exists(tmp_folder):
         os.makedirs(tmp_folder)
@@ -80,9 +81,10 @@ for im_path in imageList:
     panorama_img = skimage.io.imread(im_path)
     coordinates_list = []
 
-
-    tilelist = render_imgs(panorama_img, tmp_folder, save_directly)
+    # Prende le porzioni dell'immagine panoramica
+    tilelist = render_imgs(panorama_img, tmp_folder, tmp_folder_ifab, save_directly)
     if not save_directly:
+        # Usa delle immagini già salvate
         tilelist = glob.glob(tmp_folder + '*.jpg')
         tilelist.sort()
 
