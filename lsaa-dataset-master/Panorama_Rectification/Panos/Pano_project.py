@@ -553,7 +553,7 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                     # Crea il percorso per il file JSON che contiene la matrice di rotazione
                     # Questo file può essere utile per successive elaborazioni o analisi
                     json_path = rendering_img_base + '_VP_{}_{}.json'.format(i, j)
-                    heading_json = rendering_img_base + '_VP_{}_{}_heading_map.npy'.format(i, j)
+                    heading_json = rendering_img_base + '_VP_{}_{}_heading_facade.json'.format(i, j)
 
                     heading_data = {
                         "heading": float(headings_tmp),
