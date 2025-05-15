@@ -5,7 +5,7 @@ import skimage.io
 from math import acos, cos, degrees, radians, sin
 import glob
 from Panos.Pano_visualization import R_roll, R_pitch, R_heading
-from Panos.Pano_new_pano import calculate_new_pano, save_heading_pitch_json
+from Panos.Pano_new_pano import calculate_new_pano, save_heading_pitch_json, save_heading_only
 from Panos.Pano_refine_project import simon_refine
 import json
 
@@ -519,12 +519,19 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
 
                     ########### Codice commentato: salvataggio delle informazioni di heading e pitch
                     # Questa parte salverebbe le coordinate di heading e pitch per ogni pixel dell'immagine finale
-                    ttttt_heading_pitch = save_heading_pitch_json(tmp_coordinates, im, m_tmp, n_tmp)
-                    ttttt_heading_pitch_json_path = rendering_img_base + '_VP_{}_{}_heading_pitch.npy'.format(i, j)
-                    with open(ttttt_heading_pitch_json_path, 'w') as f:
-                        json.dump(ttttt_heading_pitch.tolist(), f)
-                    np.save(ttttt_heading_pitch_json_path, ttttt_heading_pitch)
+                    #ttttt_heading_pitch = save_heading_pitch_json(tmp_coordinates, im, m_tmp, n_tmp)
+                    #ttttt_heading_pitch_json_path = rendering_img_base + '_VP_{}_{}_heading_pitch.npy'.format(i, j)
+                    #with open(ttttt_heading_pitch_json_path, 'w') as f:
+                    #    json.dump(ttttt_heading_pitch.tolist(), f)
+                    #np.save(ttttt_heading_pitch_json_path, ttttt_heading_pitch)
                     #########################################
+
+                    # Calcola le coordinate di heading per ogni pixel
+                    ttttt_heading = save_heading_only(tmp_coordinates, im, m_tmp, n_tmp)
+                    ttttt_heading_json_path = rendering_img_base + '_VP_{}_{}_heading_map.npy'.format(i, j)
+                    with open(ttttt_heading_json_path, 'w') as f:
+                        json.dump(ttttt_heading.tolist(), f)
+                    np.save(ttttt_heading_json_path, ttttt_heading)
 
                     # Converte le coordinate 3D in coordinate 2D nell'immagine panoramica
                     tmp_coordinates = calculate_new_pano(tmp_coordinates, im)
@@ -546,10 +553,19 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                     # Crea il percorso per il file JSON che contiene la matrice di rotazione
                     # Questo file può essere utile per successive elaborazioni o analisi
                     json_path = rendering_img_base + '_VP_{}_{}.json'.format(i, j)
+                    heading_json = rendering_img_base + '_VP_{}_{}_heading_map.npy'.format(i, j)
+
+                    heading_data = {
+                        "heading": float(headings_tmp),
+                    }
 
                     # Salva la matrice di rotazione finale in formato JSON
                     with open(json_path, 'w') as f:
                         json.dump(super_R.tolist(), f)
+
+                    # Salva le informazioni di heading in formato JSON
+                    with open(heading_json, 'w') as f:
+                        json.dump(heading_data, f)
 
                 # Se il raffinamento non ha avuto successo (non è stato trovato un punto di fuga valido)
                 else:
