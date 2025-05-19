@@ -534,7 +534,8 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                     with open(ttttt_heading_json_path, 'w') as f:
                         json.dump(ttttt_heading.tolist(), f)
                     # Salva solo l'ultima riga della matrice (la riga più bassa)
-                    np.save(ttttt_heading_json_path, ttttt_heading[-1, :])
+                    #np.save(ttttt_heading_json_path, ttttt_heading[-1, :])
+                    np.save(ttttt_heading_json_path, ttttt_heading)
 
                     # Converte le coordinate 3D in coordinate 2D nell'immagine panoramica
                     tmp_coordinates = calculate_new_pano(tmp_coordinates, im)
@@ -589,7 +590,7 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                 # skimage.io.imsave(save_path_left, sub_left)
                 # skimage.io.imsave(save_path_right, sub_right)
 
-    heading_json = rendering_img_base + 'heading_facade.json'
+    heading_json = rendering_img_base + '_heading_facade.json'
     with open(heading_json, 'w') as f:
         json.dump(headings_list, f)
 
