@@ -59,3 +59,8 @@ deps.json
 
 # Node modules folder
 */node_modules/
+
+#images and json
+*.jpg
+*.json
+*.npy

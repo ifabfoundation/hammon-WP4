@@ -38,7 +38,8 @@ def save_heading_pitch_json(point1, im, m, n):
 
 def save_heading_only(point1, im, m, n):
     # Calcola l'heading (angolo orizzontale) dalle coordinate 3D
-    angle_x = np.degrees(np.arctan2(point1[:, 0], point1[:, 2]))
+    # angle_x = np.degrees(np.arctan2(point1[:, 0], point1[:, 2]))
+    angle_x = np.arctan2(point1[:, 0], point1[:, 2]) # rad
     # Restituisce un array 2D con la forma (m, n)
     heading_data = angle_x.reshape(m, n)
     return heading_data
