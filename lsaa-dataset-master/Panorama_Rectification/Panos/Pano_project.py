@@ -166,13 +166,13 @@ def project_face(num, degree):
     # p1 = (enu @ lla2xyz(lat=edge[1][1], lon=edge[1][0], alt=ground))[:3]
 
     # Definizione delle dimensioni fisiche della facciata in metri
-    height = 10  # Altezza della facciata in metri (abbassare per avere un'immagine più piccola)
+    height = 20  # Altezza della facciata in metri (abbassare per avere un'immagine più piccola)
     width = 20   # Larghezza della facciata in metri (abbassare per avere un'immagine più piccola)
     mpp = 0.0125  # Metri per pixel - definisce la risoluzione dell'immagine risultante
     
     # Definizione dei punti che rappresentano il bordo superiore della facciata
-    p0 = np.array([-10., 5., 0.])  # Punto iniziale del bordo superiore: coordinate (x=-10, y=10, z=0)
-    p1 = np.array([10., 5, 0.])    # Punto finale del bordo superiore: coordinate (x=10, y=10, z=0)
+    p0 = np.array([-10., 10., 0.])  # Punto iniziale del bordo superiore: coordinate (x=-10, y=10, z=0)
+    p1 = np.array([10., 10., 0.])    # Punto finale del bordo superiore: coordinate (x=10, y=10, z=0)
     middle = (p0 + p1) / 2          # Punto centrale del bordo superiore: media tra p0 e p1
 
     # Definizione dei vettori di orientamento della facciata
@@ -421,6 +421,8 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
         adat_2 = int(n - (n - n_main) / 2)  # Fine della regione principale
 
 
+    headings_list = []
+
     # Ciclo principale: elabora ogni punto di fuga orizzontale rilevato
     for i in range(len(final_hvps_rectified)):
         hvp = final_hvps_rectified[i]  # Punto di fuga corrente
@@ -531,7 +533,8 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                     ttttt_heading_json_path = rendering_img_base + '_VP_{}_{}_heading_map.npy'.format(i, j)
                     with open(ttttt_heading_json_path, 'w') as f:
                         json.dump(ttttt_heading.tolist(), f)
-                    np.save(ttttt_heading_json_path, ttttt_heading)
+                    # Salva solo l'ultima riga della matrice (la riga più bassa)
+                    np.save(ttttt_heading_json_path, ttttt_heading[-1, :])
 
                     # Converte le coordinate 3D in coordinate 2D nell'immagine panoramica
                     tmp_coordinates = calculate_new_pano(tmp_coordinates, im)
@@ -553,19 +556,18 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                     # Crea il percorso per il file JSON che contiene la matrice di rotazione
                     # Questo file può essere utile per successive elaborazioni o analisi
                     json_path = rendering_img_base + '_VP_{}_{}.json'.format(i, j)
-                    heading_json = rendering_img_base + '_VP_{}_{}_heading_facade.json'.format(i, j)
 
                     heading_data = {
                         "heading": float(headings_tmp),
+                        "i": i,
+                        "j": j
                     }
+
+                    headings_list.append(heading_data)
 
                     # Salva la matrice di rotazione finale in formato JSON
                     with open(json_path, 'w') as f:
                         json.dump(super_R.tolist(), f)
-
-                    # Salva le informazioni di heading in formato JSON
-                    with open(heading_json, 'w') as f:
-                        json.dump(heading_data, f)
 
                 # Se il raffinamento non ha avuto successo (non è stato trovato un punto di fuga valido)
                 else:
@@ -587,7 +589,9 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                 # skimage.io.imsave(save_path_left, sub_left)
                 # skimage.io.imsave(save_path_right, sub_right)
 
-
+    heading_json = rendering_img_base + 'heading_facade.json'
+    with open(heading_json, 'w') as f:
+        json.dump(headings_list, f)
 
 
 
