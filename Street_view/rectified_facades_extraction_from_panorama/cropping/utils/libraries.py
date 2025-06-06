@@ -5,10 +5,8 @@ import json
 import math
 import multiprocessing
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Union
 import os
-from typing import Optional
-
 
 import numpy as np
 import pandas as pd
@@ -19,3 +17,4 @@ from PIL import Image, ImageDraw
 from matplotlib.colors import LinearSegmentedColormap
 from shapely.geometry import LineString, Point
 from shapely import wkt
+import cv2

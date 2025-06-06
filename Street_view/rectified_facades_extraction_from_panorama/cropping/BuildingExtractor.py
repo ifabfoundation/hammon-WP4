@@ -3,10 +3,12 @@ import sys
 from pathlib import Path
 import numpy as np
 import geopandas as gpd
+import cv2
 from typing import List, Tuple, Dict, Any, Optional
 
 from cropping.geodaframe.GeoDataFrameProcessor import GeoDataFrameProcessor
 from cropping.extractor.BuildingProcessor import BuildingProcessor
+from cropping.extractor.CroppingSky import SkyCropper
 from cropping.utils.Config import Config
 
 class BuildingFacadeExtractor:
@@ -76,6 +78,9 @@ class BuildingFacadeExtractor:
         
         # Initialize building extractor
         self.building_extractor = BuildingProcessor(self.config)
+        
+        # Initialize sky cropper for the final processing step
+        self.sky_cropper = SkyCropper(sky_offset=20)
 
     def __add_yaw_columns(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """Add yaw angle columns to GeoDataFrame."""
@@ -135,7 +140,29 @@ class BuildingFacadeExtractor:
                 print(f"Processing building {idx + 1}/{len(gdf_combined)}")
                 print(f"{'='*60}")
                 
-                extractor.extract_building_facade(row, self.config.image_data_folder, save_crops=True, output_dir=self.config.rendering_output_folder)
+                # Extract building facade
+                building_result = extractor.extract_building_facade(row, self.config.image_data_folder, 
+                                                                  save_crops=True, 
+                                                                  output_dir=self.config.rendering_output_folder)
+                
+                # Get the basename of the image for the final output filename
+                image_name = row["FOTO"].split(".")[0]
+                filename = f"{image_name}_building_cropped.jpg"
+                
+                # Final processing step: remove sky from the extracted building image
+                # Look for the cropped image file
+                cropped_file_path = os.path.join(self.config.rendering_output_folder, filename)
+                
+                if os.path.exists(cropped_file_path):
+                    # Create a directory for the final images
+                    final_output_dir = os.path.join(self.config.rendering_output_folder, "final_images")
+                    
+                    # Load the cropped image
+                    cropped_image = cv2.imread(cropped_file_path)
+                    
+                    if cropped_image is not None:
+                        # Apply sky cropping
+                        self.sky_cropper.process_building_image(cropped_image, final_output_dir, filename)
                 
             except Exception as e:
                 print(f"Error processing row {idx}: {e}")
