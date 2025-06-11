@@ -797,10 +797,81 @@ def create_geodataframe():
 
     # Load and filter camera points using dynamic functions
     print("\nLoading and filtering camera points...")
+
+    def calculate_orientation(dx, dy):
+        """
+        Calculate orientation from dx, dy differences
+        Returns cardinal direction (N, S, E, W)
+        """
+        # Calculate angle in radians
+        orientation_rad = math.atan2(dy, dx)
+        # Convert to degrees
+        orientation_degrees = math.degrees(orientation_rad)
+        # Convert to azimuth (0-360, where 0 is East, 90 is North)
+        # We need to adjust this to geographic convention (0 is North, 90 is East)
+        azimuth = (90 - orientation_degrees) % 360
+        
+        # Determine cardinal direction
+        if azimuth >= 315 or azimuth < 45:
+            return 'N'
+        elif 45 <= azimuth < 135:
+            return 'E'
+        elif 135 <= azimuth < 225:
+            return 'S'
+        elif 225 <= azimuth < 315:
+            return 'W'
+        else:
+            return 'N'  # fallback
+    
     gdf_camera_all = gpd.read_file(CAMERA_FILE_PATH)
+    
+    # Main processing loop
+    for index, row in gdf_camera_all.iterrows():
+        foto = row['FOTO'].split('.')[0]
+        foto_number = int(foto[-6:])
+        orientation = None
+        
+        try:
+            # First, try to use the next photo for orientation
+            if index + 1 < len(gdf_camera_all):
+                next_row = gdf_camera_all.iloc[index + 1]
+                foto_number_next = int(next_row['FOTO'].split('.')[0][-6:])
+                
+                # Check if next photo is consecutive
+                if foto_number_next - foto_number == 1:
+                    dx = next_row['X'] - row['X']
+                    dy = next_row['Y'] - row['Y']
+                    orientation = calculate_orientation(dx, dy)
+            
+            # If we couldn't use next photo, try previous photo
+            if orientation is None and index > 0:
+                previous_row = gdf_camera_all.iloc[index - 1]
+                foto_number_previous = int(previous_row['FOTO'].split('.')[0][-6:])
+                
+                # Check if current photo is consecutive after previous
+                if foto_number - foto_number_previous == 1:
+                    dx = row['X'] - previous_row['X']
+                    dy = row['Y'] - previous_row['Y']
+                    orientation = calculate_orientation(dx, dy)
+            
+            # Assign orientation if we found one
+            if orientation is not None:
+                gdf_camera_all.loc[index, 'orientation_run'] = orientation
+                
+        except Exception as e:
+            print(f"Error processing row {index}: {e}")
+            continue
+
+    # Optional: Fill any remaining NaN values with a default or interpolate
+    print("Orientation calculation completed!")
+    print(f"Rows with orientation: {gdf_camera_all['orientation_run'].notna().sum()}")
+    print(f"Rows without orientation: {gdf_camera_all['orientation_run'].isna().sum()}")
+    print(gdf_camera_all.columns)
+
     gdf_camera_subset = filter_cameras_by_runs(gdf_camera_all, RUN_VALUES)
     gdf_camera_subset = gdf_camera_subset.to_crs(TARGET_CRS)
     print(f"Final camera points for matching: {len(gdf_camera_subset)}")
+    print(gdf_camera_subset.columns)
 
     # Filter for street-facing facades
     facade_segments_filtered = filter_street_facing_facades(
@@ -892,6 +963,7 @@ def create_geodataframe():
                 'PATH': camera_row.get('PATH', ''),
                 'RUN': camera_row.get('RUN', ''),
                 'FOTO': camera_row.get('FOTO', ''),
+                'orientation_run': camera_row.get('orientation_run', None),
                 'Yaw': camera_row.get('Yaw', camera_row.get('yaw', None)),
                 'Pitch': camera_row.get('Pitch', camera_row.get('pitch', None)),
                 'Roll': camera_row.get('Roll', camera_row.get('roll', None)),
