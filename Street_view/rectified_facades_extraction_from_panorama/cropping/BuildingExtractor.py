@@ -82,44 +82,6 @@ class BuildingFacadeExtractor:
         # Initialize sky cropper for the final processing step
         self.sky_cropper = SkyCropper(sky_offset=20)
 
-    def __add_yaw_columns(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-        """Add yaw angle columns to GeoDataFrame."""
-        processor = GeoDataFrameProcessor()
-        
-        # Ensure required columns exist
-        gdf = processor.ensure_outer_edges(gdf)
-        gdf = processor.ensure_midpoints(gdf)
-        
-        # Calculate yaw angles
-        midpoint_yaws = []
-        first_yaws = []
-        second_yaws = []
-        
-        for idx, row in gdf.iterrows():
-            cam_x = row["X"]
-            cam_y = row["Y"]
-            
-            # Midpoint yaw
-            midpoint = row["geometry_midpoint"]
-            midpoint_yaws.append(processor.yaw_radians(cam_x, cam_y, midpoint.x, midpoint.y))
-            
-            # Edge vertices yaws
-            edge = row["geometry_outer_edge_shapely"]
-            v1, v2 = processor.first_two_vertices(edge)
-            first_yaws.append(processor.yaw_radians(cam_x, cam_y, v1.x, v1.y))
-            
-            if v2 is not None:
-                second_yaws.append(processor.yaw_radians(cam_x, cam_y, v2.x, v2.y))
-            else:
-                second_yaws.append(None)
-        
-        # Add columns to DataFrame
-        gdf["midpoint_yaw_rad"] = midpoint_yaws
-        gdf["edge_first_yaw_rad"] = first_yaws
-        gdf["edge_second_yaw_rad"] = second_yaws
-        
-        return gdf
-
     def extract_all_buildings(self, image_folder: Optional[str] = None) -> None:
         """Extract all buildings from the GeoDataFrame."""
         
@@ -128,7 +90,7 @@ class BuildingFacadeExtractor:
         gdf_combined = processor.load_geojson(Path(self.config.GEOJSON_PATH))
         
         # Add yaw angle columns
-        gdf_combined = self.__add_yaw_columns(gdf_combined)
+        #gdf_combined = self.__add_yaw_columns(gdf_combined)
         
         # Initialize building extractor
         extractor = BuildingProcessor(self.config)

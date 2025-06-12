@@ -65,12 +65,47 @@ class BuildingProcessor:
         heading_midpoint = row["midpoint_yaw_rad"]
         heading_first = row["edge_first_yaw_rad"]
         heading_second = row["edge_second_yaw_rad"]
+
+        print('Heading building: ', heading_midpoint)
+
+        # Find match rectified image
+        facade_orientation = row["orientation"]
+        camera_orientation = row["orientation_run"]
+
+        # Find if use 2 vanishing point
+        use_2_v_point = (json_data["i"] == 1).any()
+        # Find rectified image side
+        rectified_image_side = GeoDataFrameProcessor.calculate_cardinal_direction(camera_orientation, facade_orientation)
+
+        if use_2_v_point:
+            if json_data['heading'][0] < 0:
+                map_index_to_direction = {
+                    'right': 0,
+                    'left': 1,
+                }
+            else:
+                map_index_to_direction = {
+                    'right': 1,
+                    'left': 0,
+                }
+        else:
+            if json_data['heading'][0] > 0:
+                map_index_to_direction = {
+                    'right': 1,
+                    'left': 0,
+                }
+            else:
+                map_index_to_direction = {
+                    'right': 0,
+                    'left': 1,
+                }
         
         # Find best matching rectified image
-        heading_diff = json_data["heading"] - heading_midpoint
-        headin_index = np.argmin(np.abs(heading_diff))
-        i = json_data["i"][headin_index]
-        j = json_data["j"][headin_index]
+        i = 0
+        j = map_index_to_direction[rectified_image_side]
+
+        print('i: ', i)
+        print('j: ', j)
         
         print(json_data)
         
@@ -111,6 +146,11 @@ class BuildingProcessor:
         heading_diff = heading_map_tiled - heading_midpoint
         heading_midpoint_index = np.argmin(np.abs(heading_diff))
         print(f"Midpoint column index: {heading_midpoint_index}")
+
+        # Fix issue on negative heading second
+        if not heading_first < heading_midpoint < heading_second:
+            if heading_second < 0:
+                heading_second = heading_midpoint + abs(heading_midpoint - heading_first)
         
         # Ensure correct ordering of edges
         if heading_first > heading_second:

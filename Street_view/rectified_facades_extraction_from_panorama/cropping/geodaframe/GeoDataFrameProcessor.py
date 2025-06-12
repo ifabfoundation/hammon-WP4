@@ -57,3 +57,29 @@ class GeoDataFrameProcessor:
         first_pt = Point(coords[0])
         second_pt = Point(coords[1]) if len(coords) > 1 else None
         return first_pt, second_pt
+
+    @staticmethod
+    def calculate_cardinal_direction(source: string, target: string) -> string:
+        """Calculate the cardinal direction from source to target."""
+        
+        map_directions = {
+            "N": 0,
+            "E": 90,
+            "S": 180,
+            "W": 270,
+        }
+
+        source_angle = map_directions[source]
+        target_angle = map_directions[target]
+
+        diff = (target_angle - source_angle) % 360
+
+        if diff == 0:
+            return "forward"
+        elif diff == 180:
+            return "backward"
+        elif 0 < diff < 180:
+            return "right"
+        else:  # 180 < diff < 360
+            return "left"
+
