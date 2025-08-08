@@ -877,7 +877,7 @@ def process_single_zone(zone, base_path):
         else:
             return 'N'  # fallback
 
-    gdf_camera_all = s3_client.read_shapefile('geolander.streetview', CAMERA_FILE_PATH)
+    gdf_camera_all = s3_client.read_shapefile('geolander.streetview', camera_file_path)
     
     # Main processing loop
     for index, row in gdf_camera_all.iterrows():
@@ -922,7 +922,7 @@ def process_single_zone(zone, base_path):
     print(f"Rows without orientation: {gdf_camera_all['orientation_run'].isna().sum()}")
     print(gdf_camera_all.columns)
 
-    gdf_camera_subset = filter_cameras_by_runs(gdf_camera_all, RUN_VALUES)
+    gdf_camera_subset = filter_cameras_by_runs(gdf_camera_all, run_values)
     gdf_camera_subset = gdf_camera_subset.to_crs(TARGET_CRS)
     print(f"Final camera points for matching: {len(gdf_camera_subset)}")
     print(gdf_camera_subset.columns)
@@ -1234,7 +1234,7 @@ def process_single_zone(zone, base_path):
             )
         
         ax.legend(loc='upper left')
-        ax.set_title(f"Study Area Overview\nDynamic Bbox: {lat_min:.4f}, {lon_min:.4f} to {lat_max:.4f}, {lon_max:.4f}\nUsing {len(RUN_VALUES)} RUN values", fontsize=14)
+        ax.set_title(f"Study Area Overview\nDynamic Bbox: {lat_min:.4f}, {lon_min:.4f} to {lat_max:.4f}, {lon_max:.4f}\nUsing {len(run_values)} RUN values", fontsize=14)
         ax.set_xlabel("X Coordinate (UTM)")
         ax.set_ylabel("Y Coordinate (UTM)")
         

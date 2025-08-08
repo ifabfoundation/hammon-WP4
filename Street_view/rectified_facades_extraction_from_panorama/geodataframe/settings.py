@@ -1,10 +1,12 @@
 # %%
 # Configuration parameters
-CAMERA_FILE_PATH = '2025/sudest2/shape/RUN.shp'
-PANO_FOLDER_PATH = '2025/sudest2/pano/'
+BASE_PATH = '2025'  # Percorso base che contiene tutte le zone
+# Le seguenti variabili saranno determinate dinamicamente per ogni zona
+# CAMERA_FILE_PATH = '2025/sudest2/shape/RUN.shp'  # Sarà generato dinamicamente
+# PANO_FOLDER_PATH = '2025/sudest2/pano/'  # Sarà generato dinamicamente
 BUFFER_METERS = 200
 TARGET_CRS = "EPSG:7791"
-OUTPUT_DIR = 'geodataframe/results/'
+OUTPUT_DIR = 'geodataframe/results/'  # Ogni zona avrà una sottocartella qui
 INTERACTIVE_PLOTS = True
 LINE_OF_SIGHT_RADIUS = 100
 BUILDING_DENSITY_THRESHOLD = 5
