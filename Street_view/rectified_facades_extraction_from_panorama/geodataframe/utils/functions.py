@@ -4,16 +4,26 @@ from geodataframe.utils.libraries import *
 Utility functions
 """
 
-def auto_detect_run_values(pano_folder_path="../data/PANO_new"):
+def auto_detect_run_values(bucket_name: str = 'geolander.streetview', pano_folder_prefix="Pano_new"):
     """Automatically detect available RUN values from PANO_new folder structure."""
-    print(f"Auto-detecting RUN values from: {pano_folder_path}")
+    print(f"Auto-detecting RUN values from: {bucket_name}/{pano_folder_prefix}")
     
-    try:        
+    try:
+        s3_client_obj = S3Client()
+        s3_client = s3_client_obj.get_s3_client()
         run_values = []
-        for root, dirs, files in os.walk(pano_folder_path):
-            for dir_name in dirs:
-                if dir_name.isdigit():
-                    run_values.append(dir_name)
+
+        paginator = s3_client.get_paginator('list_objects_v2')
+
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=pano_folder_prefix, Delimiter='/'):
+            # Ottieni tutti i prefissi comuni (equivalenti alle directory)
+            for prefix in page.get('CommonPrefixes', []):
+                # Estrai il nome della "directory" dal prefisso
+                prefix_path = prefix.get('Prefix', '')
+                folder_name = prefix_path.rstrip('/').split('/')[-1]
+                
+                if folder_name.isdigit():
+                    run_values.append(folder_name)
         
         run_values = sorted(list(set(run_values)))
         print(f"Found {len(run_values)} RUN values: {run_values}")
@@ -52,7 +62,8 @@ def calculate_dynamic_bbox_from_cameras(camera_file_path, buffer_meters=200):
     print(f"Loading camera data from: {camera_file_path}")
     
     try:
-        gdf_camera = gpd.read_file(camera_file_path)
+        s3_client = S3Client()
+        gdf_camera = s3_client.read_shapefile('geolander.streetview', camera_file_path)
         print(f"Loaded {len(gdf_camera)} camera points")
         
         if gdf_camera.crs != "EPSG:4326":

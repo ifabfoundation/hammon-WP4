@@ -15,3 +15,4 @@ warnings.filterwarnings('ignore')
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
+from s3_library.S3Client import S3Client

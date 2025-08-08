@@ -671,14 +671,17 @@ def apply_enhanced_matching(facades_to_match_gdf, cameras_subset_gdf, all_buildi
     return matched_gdf, unmatched_gdf, cam_usage_dict
 
 def create_geodataframe():
+    # Initialize S3 client
+    s3_client = S3Client()
+    
     # Setup plotting backend
     setup_plotting_backend(interactive=INTERACTIVE_PLOTS)
 
     # Setup output directory
-    output_dir = setup_output_directory(OUTPUT_DIR)
+    output_dir = OUTPUT_DIR
 
     # Determine RUN values to use
-    RUN_VALUES = auto_detect_run_values(PANO_FOLDER_PATH)
+    RUN_VALUES = auto_detect_run_values(pano_folder_prefix=PANO_FOLDER_PATH)
 
     # Calculate dynamic bounding box from camera positions
     lat_min, lon_min, lat_max, lon_max = calculate_dynamic_bbox_from_cameras(
@@ -822,8 +825,8 @@ def create_geodataframe():
             return 'W'
         else:
             return 'N'  # fallback
-    
-    gdf_camera_all = gpd.read_file(CAMERA_FILE_PATH)
+
+    gdf_camera_all = s3_client.read_shapefile('geolander.streetview', CAMERA_FILE_PATH)
     
     # Main processing loop
     for index, row in gdf_camera_all.iterrows():
@@ -1023,7 +1026,7 @@ def create_geodataframe():
 
         output_filename = f"Enhanced_facades_for_extraction_{len(gdf_combined)}_facades.geojson"
         output_path = os.path.join(output_dir, output_filename)
-        gdf_combined.to_file(output_path, driver="GeoJSON")
+        s3_client.write_geodataframe(gdf_combined, 'data', output_path)
         print(f"\nSaved enhanced facade data to: {output_path}")
 
         if not gdf_combined.empty:
@@ -1036,7 +1039,7 @@ def create_geodataframe():
             
             summary_filename = f"Enhanced_facades_summary_{len(gdf_combined)}_facades.csv"
             summary_path = os.path.join(output_dir, summary_filename)
-            summary_df.to_csv(summary_path, index=False)
+            s3_client.write_dataframe(summary_df, 'data', summary_path)
             print(f"Saved summary CSV to: {summary_path}")
     else:
         print("gdf_combined is empty. Skipping yaw calculations and saving.")
@@ -1153,13 +1156,13 @@ def create_geodataframe():
         # Also save to file for reference
         plot_filename = f"facade_extraction_visualization_{len(gdf_combined)}_facades.png"
         plot_path = os.path.join(output_dir, plot_filename)
-        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        s3_client.write_matplotlib_figure(fig, 'data', plot_path, 'png', dpi=300, bbox_inches='tight')
         print(f"Also saved plot to: {plot_path}")
     else:
         # Save the plot to file only
         plot_filename = f"facade_extraction_visualization_{len(gdf_combined)}_facades.png"
         plot_path = os.path.join(output_dir, plot_filename)
-        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        s3_client.write_matplotlib_figure(fig, 'data', plot_path, 'png', dpi=300, bbox_inches='tight')
         print(f"Saved visualization plot to: {plot_path}")
         plt.close()  # Close the figure to free memory
 
@@ -1191,13 +1194,13 @@ def create_geodataframe():
             # Also save overview plot
             overview_filename = f"study_area_overview_{len(gdf_combined)}_facades.png"
             overview_path = os.path.join(output_dir, overview_filename)
-            plt.savefig(overview_path, dpi=300, bbox_inches='tight')
+            s3_client.write_matplotlib_figure(fig, 'data', overview_path, 'png', dpi=300, bbox_inches='tight')
             print(f"Also saved overview plot to: {overview_path}")
         else:
             # Save overview plot
             overview_filename = f"study_area_overview_{len(gdf_combined)}_facades.png"
             overview_path = os.path.join(output_dir, overview_filename)
-            plt.savefig(overview_path, dpi=300, bbox_inches='tight')
+            s3_client.write_matplotlib_figure(fig, 'data', overview_path, 'png', dpi=300, bbox_inches='tight')
             print(f"Saved overview plot to: {overview_path}")
             plt.close()
 
