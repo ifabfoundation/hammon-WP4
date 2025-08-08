@@ -1,6 +1,7 @@
 from cropping.utils.libraries import *
 from cropping.geodaframe.GeoDataFrameProcessor import GeoDataFrameProcessor
 from cropping.utils.Config import Config
+from io import StringIO, BytesIO
 
 # Building Extraction Functions
 class BuildingProcessor:
@@ -59,7 +60,9 @@ class BuildingProcessor:
         # Extract image and heading information
         image_name = row["FOTO"].split(".")[0]
         json_name = f"{image_name}_heading_facade.json"
-        json_data = pd.read_json(os.path.join(image_folder, json_name))
+        json_path = os.path.join(image_folder, json_name)
+        json_bytes_data = self.config.s3_client.read_file('data', json_path)
+        json_data = pd.read_json(StringIO(json_bytes_data.decode('utf-8')))
         
         # Get building heading angles
         heading_midpoint = row["midpoint_yaw_rad"]
@@ -113,8 +116,9 @@ class BuildingProcessor:
         rectified_image_path = f"{image_name}_VP_{i}_{j}.jpg"
         heading_map_path = f"{image_name}_VP_{i}_{j}_heading_map.npy"
         
-        rectified_image = Image.open(os.path.join(image_folder, rectified_image_path))
-        heading_map = np.load(os.path.join(image_folder, heading_map_path), allow_pickle=True)
+        rectified_image = self.config.s3_client.read_image('data', os.path.join(image_folder, rectified_image_path))
+        heading_map_bytes = self.config.s3_client.read_file('data', os.path.join(image_folder, heading_map_path))
+        heading_map = np.load(BytesIO(heading_map_bytes), allow_pickle=True)
         
         # Align heading map
         heading_map_aligned = self.align_heading_map(
@@ -218,19 +222,13 @@ class BuildingProcessor:
         # Extract the building region
         cropped_building = img_array[:, first_col:second_col]
         
-        # Create output directory for cropped buildings if it doesn't exist
-        if output_dir is None:
-            output_dir = os.path.join(image_folder, "cropped_buildings")
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        
         # Generate output filename
         output_filename = f"{image_name}_building_cropped.jpg"
         output_path = os.path.join(output_dir, output_filename)
         
         # Save the cropped image
         cropped_pil = Image.fromarray(cropped_building)
-        cropped_pil.save(output_path, quality=95)
+        self.config.s3_client.write_image(cropped_pil, 'data', output_path)
         
         print(f"Saved cropped building to: {output_path}")
         print(f"Cropped image size: {cropped_building.shape[1]}x{cropped_building.shape[0]} pixels")

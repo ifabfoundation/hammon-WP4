@@ -1,4 +1,5 @@
 from cropping.utils.libraries import *
+from cropping.utils.Config import Config
 
 class SkyCropper:
     """
@@ -6,7 +7,7 @@ class SkyCropper:
     This is intended to be used as a final step in the building extraction pipeline.
     """
     
-    def __init__(self, sky_offset: int = 20):
+    def __init__(self, config: Config, sky_offset: int = 20):
         """
         Initialize the SkyCropper with configuration parameters.
         
@@ -14,6 +15,7 @@ class SkyCropper:
             sky_offset (int): Additional offset above the detected roof line
         """
         self.sky_offset = sky_offset
+        self.config = config
     
     def compute_horizontal_gradient_sum(self, image: np.ndarray) -> np.ndarray:
         """
@@ -251,12 +253,9 @@ class SkyCropper:
             # Crop sky from the image
             cropped, crop_line = self.crop_sky_from_image(image)
             
-            # Create output directory if it doesn't exist
-            os.makedirs(output_dir, exist_ok=True)
-            
             # Save final image
             output_path = os.path.join(output_dir, f"final_{filename}")
-            cv2.imwrite(output_path, cropped)
+            self.config.s3_client.write_cv2_image('data', output_path, cropped)
             
             print(f"Saved final processed image to: {output_path}")
             return cropped

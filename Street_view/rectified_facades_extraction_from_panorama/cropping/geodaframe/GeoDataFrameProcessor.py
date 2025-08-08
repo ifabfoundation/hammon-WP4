@@ -4,11 +4,13 @@ from cropping.utils.libraries import *
 class GeoDataFrameProcessor:
     """Utilities for processing GeoDataFrame with building geometry."""
     
-    @staticmethod
-    def load_geojson(path: Path) -> gpd.GeoDataFrame:
+    def __init__(self, s3_client):
+        self.s3_client = s3_client
+    
+    def load_geojson(self, path: str) -> gpd.GeoDataFrame:
         """Read a GeoJSON file and return a GeoDataFrame."""
         try:
-            return gpd.read_file(path)
+            return self.s3_client.read_geodataframe('data', path)
         except Exception as exc:
             raise SystemExit(f"Unable to read GeoJSON → {exc}") from exc
     
