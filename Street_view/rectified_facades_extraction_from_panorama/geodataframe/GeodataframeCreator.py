@@ -812,12 +812,24 @@ def process_single_zone(zone, base_path):
                         closest_building_id_for_segment = None
                         
                         for _, building in group_gdf.iterrows():
-                            if segment.distance(building.geometry.exterior) < 0.01:
-                                dist_midpoint_to_poly = building.geometry.distance(segment_midpoint)
-                                if dist_midpoint_to_poly < min_dist_to_building_boundary:
-                                    min_dist_to_building_boundary = dist_midpoint_to_poly
-                                    closest_building_id_for_segment = building['osm_id']
-
+                            # Controlliamo se è un MultiPolygon
+                            if hasattr(building.geometry, 'geoms'):  # Modo sicuro per verificare MultiPolygon
+                                # Controlliamo ogni poligono nella collezione
+                                found_match = False
+                                for poly in building.geometry.geoms:
+                                    if hasattr(poly, 'exterior') and segment.distance(poly.exterior) < 0.01:
+                                        dist_midpoint_to_poly = poly.distance(segment_midpoint)
+                                        if dist_midpoint_to_poly < min_dist_to_building_boundary:
+                                            min_dist_to_building_boundary = dist_midpoint_to_poly
+                                            closest_building_id_for_segment = building['osm_id']
+                                            found_match = True
+                            # Caso standard (Polygon singolo)
+                            elif hasattr(building.geometry, 'exterior'):
+                                if segment.distance(building.geometry.exterior) < 0.01:
+                                    dist_midpoint_to_poly = building.geometry.distance(segment_midpoint)
+                                    if dist_midpoint_to_poly < min_dist_to_building_boundary:
+                                        min_dist_to_building_boundary = dist_midpoint_to_poly
+                                        closest_building_id_for_segment = building['osm_id']
                         if closest_building_id_for_segment is not None:
                             facade_segments.append({
                                 'group_id': group_id,
