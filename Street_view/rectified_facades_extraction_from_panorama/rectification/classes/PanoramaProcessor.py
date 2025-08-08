@@ -5,7 +5,7 @@ class PanoramaProcessor:
     Class for processing panoramic images and extracting rectified facades.
     """
     
-    def __init__(self, root='Pano_new', country_city='New', plot_redundant=True, save_directly=False, new_count=5, geodataframe_path=None, images_base_path=None, s3_client=None):
+    def __init__(self, root='Pano_new', country_city='New', zone = 'default', plot_redundant=True, save_directly=False, new_count=5, geodataframe_path=None, images_base_path=None, s3_client=None):
         """
         Initialize the panorama processor.
         
@@ -20,6 +20,7 @@ class PanoramaProcessor:
         """
         self.root = root
         self.country_city = country_city
+        self.zone = zone
         self.plot_redundant = plot_redundant
         self.save_directly = save_directly
         self.new_count = new_count
@@ -27,14 +28,10 @@ class PanoramaProcessor:
         self.images_base_path = images_base_path
         
         # Setting up directories
-        self.img_folder = os.path.join(root, country_city, 'images/')
         self.inter_dir = os.path.join(root, 'Pano_hl_z_vp/')
-        self.rendering_output_folder = os.path.join(root, country_city, 'Rendering')
+        self.rendering_output_folder = os.path.join(root, country_city, zone, 'Rendering')
         self.s3_client = s3_client
-        
-        # Create the output directory if it doesn't exist
-        if not os.path.exists(self.rendering_output_folder):
-            os.makedirs(self.rendering_output_folder)
+
     
     def get_image_list(self):
         """
@@ -67,11 +64,6 @@ class PanoramaProcessor:
             except Exception as e:
                 print(f"Error reading geodataframe: {e}")
                 print("Falling back to reading all images in the directory")
-        
-        # Fallback to the original behavior if geodataframe path is not provided or if there was an error
-        image_list = glob.glob(self.img_folder + '*.jpg')
-        image_list.sort()
-        return image_list
     
     def setup_temp_folders(self, task='1', thread_num=1):
         """
@@ -305,6 +297,7 @@ class PanoramaProcessor:
             
             # Remove temporary files
             self.s3_client.delete_files_with_prefix('data', tmp_folder)
+            self.s3_client.delete_files_with_prefix('data', tmp_folder_ifab)
             
             # Calculate zenith points
             print(f"STEP - Calcolo punti zenit")
