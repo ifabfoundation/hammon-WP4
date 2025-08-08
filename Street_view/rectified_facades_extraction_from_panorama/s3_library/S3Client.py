@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from io import IOBase
 import pandas as pd
+import numpy as np
+import cv2
 
 class S3Client:
     def __init__(self):
@@ -51,6 +53,17 @@ class S3Client:
             for obj in page.get('Contents', []):
                 yield obj['Key']
 
+    def list_all_sub_folders(self, bucket_name: str, prefix: str) -> list:
+
+        search_prefix = self.normalize_path(prefix) + "/"
+        paginator = self.s3.get_paginator('list_objects_v2')
+
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=search_prefix, Delimiter='/'):
+            for prefix in page.get('CommonPrefixes', []):
+                prefix_path = prefix.get('Prefix', '')
+                folder_name = prefix_path.rstrip('/').split('/')[-1]
+                yield folder_name
+
     def read_file(self, bucket_name: str, file_name: str) -> bytes:
         # Normalizza il percorso del file
         file_name = self.normalize_path(file_name)
@@ -66,6 +79,16 @@ class S3Client:
         # Normalizza il percorso del file
         file_name = self.normalize_path(file_name)
         return Image.open(BytesIO(self.read_file(bucket_name, file_name)))
+
+    def read_cv2_image(self, bucket_name: str, file_name: str):
+        # Normalizza il percorso del file
+        file_name = self.normalize_path(file_name)
+        # Leggi i bytes
+        file_bytes = self.read_file(bucket_name, file_name)
+        # Converti in numpy array
+        nparr = np.frombuffer(file_bytes, np.uint8)
+        # Decodifica l'immagine
+        return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     def download_file(self, bucket_name: str, file_name: str, local_path: str):
         """
@@ -177,6 +200,21 @@ class S3Client:
 
         buffer.seek(0)
         self.write_object(buffer, bucket_name, file_name)
+
+    def write_cv2_image(self, bucket_name: str, file_name: str, image, img_format='.jpg', quality=95):
+        # Normalizza il percorso del file
+        file_name = self.normalize_path(file_name)
+        
+        # Codifica l'immagine in formato binario
+        is_success, buffer = cv2.imencode(img_format, image, [cv2.IMWRITE_JPEG_QUALITY, quality])
+        if not is_success:
+            raise Exception(f"Impossibile codificare l'immagine nel formato {img_format}")
+        
+        # Crea un BytesIO buffer per l'upload
+        binary_buffer = BytesIO(buffer.tobytes())
+        
+        # Carica il buffer su S3
+        self.write_object(binary_buffer, bucket_name, file_name)
 
     def write_dataframe(self, df: pd.DataFrame, bucket_name: str, file_name: str, **kwargs) -> None:
         # Normalizza il percorso del file
