@@ -121,7 +121,7 @@ def calculate_horizon_coordinates(point1, im):
 
 
 
-def draw_all_vp_and_hl_color(zenith_points, hv_points, im, root):
+def draw_all_vp_and_hl_color(zenith_points, hv_points, im, root, s3_client=None, bucket_name='data'):
     cir_r = 30
     hori_coordinates = []
     draw = ImageDraw.Draw(im)
@@ -151,12 +151,23 @@ def draw_all_vp_and_hl_color(zenith_points, hv_points, im, root):
     # Convertire l'immagine in formato RGB prima di salvare come JPEG (poiché JPEG non supporta trasparenza)
     if im.mode == 'RGBA':
         im = im.convert('RGB')
-    im.save(os.path.join(root, 'all_vp_and_hl_color.jpg'))
+    
+    # Salva su S3 se è fornito un client S3, altrimenti salva in locale
+    output_filename = os.path.join(root, 'all_vp_and_hl_color.jpg')
+    
+    if s3_client is not None:
+        # Se è fornito un client S3, salva su S3
+        s3_client.write_image(im, bucket_name, output_filename)
+        print(f"Saved visualization to S3: {bucket_name}/{output_filename}")
+    else:
+        # Fallback al salvataggio locale
+        im.save(output_filename)
+        print(f"Saved visualization locally to: {output_filename}")
 
 
 
 
-def draw_all_vp_and_hl_bi(zenith_points, hv_points, im, root):
+def draw_all_vp_and_hl_bi(zenith_points, hv_points, im, root, s3_client=None, bucket_name='data'):
     cir_r = 10
     hori_coordinates = []
     draw = ImageDraw.Draw(im)
@@ -185,11 +196,22 @@ def draw_all_vp_and_hl_bi(zenith_points, hv_points, im, root):
     # Convertire l'immagine in formato RGB prima di salvare come JPEG
     if im.mode == 'RGBA':
         im = im.convert('RGB')
-    im.save(os.path.join(root, 'all_vp_and_hl_bi.jpg'))
+    
+    # Salva su S3 se è fornito un client S3, altrimenti salva in locale
+    output_filename = os.path.join(root, 'all_vp_and_hl_bi.jpg')
+    
+    if s3_client is not None:
+        # Se è fornito un client S3, salva su S3
+        s3_client.write_image(im, bucket_name, output_filename)
+        print(f"Saved visualization to S3: {bucket_name}/{output_filename}")
+    else:
+        # Fallback al salvataggio locale
+        im.save(output_filename)
+        print(f"Saved visualization locally to: {output_filename}")
 
 
 
-def draw_zenith_on_top_color(zenith_points, root):
+def draw_zenith_on_top_color(zenith_points, root, s3_client=None, bucket_name='data'):
     cir_r = 2
     im_path = os.path.join(root, 'Pano_render/top/Render_top.jpg')
     im = Image.open(im_path)
@@ -203,10 +225,21 @@ def draw_zenith_on_top_color(zenith_points, root):
     # Convertire l'immagine in formato RGB prima di salvare come JPEG
     if im.mode == 'RGBA':
         im = im.convert('RGB')
-    im.save(os.path.join(root, 'zenith_on_top_color.jpg'))
+    
+    # Salva su S3 se è fornito un client S3, altrimenti salva in locale
+    output_filename = os.path.join(root, 'zenith_on_top_color.jpg')
+    
+    if s3_client is not None:
+        # Se è fornito un client S3, salva su S3
+        s3_client.write_image(im, bucket_name, output_filename)
+        print(f"Saved visualization to S3: {bucket_name}/{output_filename}")
+    else:
+        # Fallback al salvataggio locale
+        im.save(output_filename)
+        print(f"Saved visualization locally to: {output_filename}")
 
 
-def draw_zenith_on_top_bi(zenith_points, root):
+def draw_zenith_on_top_bi(zenith_points, root, s3_client=None, bucket_name='data'):
     cir_r = 2
     im_path = os.path.join(root, 'Pano_render/top/Render_top.jpg')
     im = Image.open(im_path)
@@ -221,13 +254,21 @@ def draw_zenith_on_top_bi(zenith_points, root):
             draw.ellipse([tuple(np.array(tmp_coor) - cir_r), tuple(np.array(tmp_coor) + cir_r)],
                          fill=tuple([0, 0, 0]))
     # Convertire l'immagine in formato RGB prima di salvare come JPEG
-    if im.mode == 'RGBA':
-        im = im.convert('RGB')
-    im.save(os.path.join(root, 'zenith_on_top_bi.jpg'))
+    
+    # Salva su S3 se è fornito un client S3, altrimenti salva in locale
+    output_filename = os.path.join(root, 'zenith_on_top_bi.jpg')
+    
+    if s3_client is not None:
+        # Se è fornito un client S3, salva su S3
+        s3_client.write_image(im, bucket_name, output_filename)
+        print(f"Saved visualization to S3: {bucket_name}/{output_filename}")
+    else:
+        # Fallback al salvataggio locale
+        im.save(output_filename)
+        print(f"Saved visualization locally to: {output_filename}")
 
 
-
-def draw_sphere_zenith(zenith_points, hv_points, root):
+def draw_sphere_zenith(zenith_points, hv_points, root, s3_client=None, bucket_name='data'):
     b = Bloch()
     # Non specifichiamo i colori qui, lasciamo che il Bloch li gestisca internamente
     # in base al numero di punti
@@ -299,4 +340,3 @@ if __name__ == "__main__":
     b.fig = fig
     name = os.path.join('zenith_on_sphere.jpg')
     b.save(name=name)
-

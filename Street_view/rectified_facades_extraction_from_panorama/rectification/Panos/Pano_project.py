@@ -1,4 +1,6 @@
+from io import BytesIO
 import os
+from tkinter import Image
 import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
 import skimage.io
@@ -8,6 +10,7 @@ from Panos.Pano_visualization import R_roll, R_pitch, R_heading
 from Panos.Pano_new_pano import calculate_new_pano, save_heading_pitch_json, save_heading_only
 from Panos.Pano_refine_project import simon_refine
 import json
+from PIL import Image
 
 # with open('/home/zhup/Desktop/GSV_Pano_val/Val/projections_views/useful_projections.json') as f:
 #     useful_projections = json.load(f)
@@ -388,7 +391,7 @@ def calculate_no_adaptive_coor(h_fov, v_fov1, v_fov2, mpp=0.0125):
 
 
 
-def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, root, tmp_folder, rendering_img_base, tmp_count):
+def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, root, tmp_folder, rendering_img_base, tmp_count, s3_client):
     """
     Funzione che proietta e rettifica le facciate architettoniche da un'immagine panoramica
     utilizzando i punti di fuga orizzontali rilevati.
@@ -458,7 +461,8 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
             coordinates = coordinates.reshape(2, m, n)
 
             # Carica l'immagine panoramica originale
-            img = skimage.io.imread(im_path)
+            img = s3_client.read_image('geolander.streetview', im_path)
+            img = np.array(img)
             
             # Campiona l'immagine panoramica alle coordinate calcolate per creare la vista rettificata
             # map_coordinates esegue un'interpolazione per ciascun canale colore (R, G, B)
@@ -530,12 +534,15 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
 
                     # Calcola le coordinate di heading per ogni pixel
                     ttttt_heading = save_heading_only(tmp_coordinates, im, m_tmp, n_tmp)
-                    ttttt_heading_json_path = rendering_img_base + '_VP_{}_{}_heading_map.npy'.format(i, j)
-                    with open(ttttt_heading_json_path, 'w') as f:
-                        json.dump(ttttt_heading.tolist(), f)
+                    ttttt_heading_npy_path = rendering_img_base + '_VP_{}_{}_heading_map.npy'.format(i, j)
+
+                    buffer = BytesIO()
+                    np.save(buffer, ttttt_heading)
+                    buffer.seek(0)
+                    s3_client.write_object(buffer, 'data', ttttt_heading_npy_path)
+
                     # Salva solo l'ultima riga della matrice (la riga più bassa)
                     #np.save(ttttt_heading_json_path, ttttt_heading[-1, :])
-                    np.save(ttttt_heading_json_path, ttttt_heading)
 
                     # Converte le coordinate 3D in coordinate 2D nell'immagine panoramica
                     tmp_coordinates = calculate_new_pano(tmp_coordinates, im)
@@ -552,7 +559,8 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                     ])
 
                     # Salva l'immagine rettificata finale
-                    skimage.io.imsave(save_path_main, tmp_sub)
+                    pil_image = Image.fromarray(tmp_sub.astype(np.uint8))
+                    s3_client.write_image(pil_image, 'data', save_path_main)
                     
                     # Crea il percorso per il file JSON che contiene la matrice di rotazione
                     # Questo file può essere utile per successive elaborazioni o analisi
@@ -567,8 +575,9 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                     headings_list.append(heading_data)
 
                     # Salva la matrice di rotazione finale in formato JSON
-                    with open(json_path, 'w') as f:
-                        json.dump(super_R.tolist(), f)
+                    json_data = json.dumps(super_R.tolist())
+                    buffer = BytesIO(json_data.encode('utf-8'))
+                    s3_client.write_object(buffer, 'data', json_path)
 
                 # Se il raffinamento non ha avuto successo (non è stato trovato un punto di fuga valido)
                 else:
@@ -591,13 +600,14 @@ def project_facade_for_refine(final_hvps_rectified, im, pitch, roll, im_path, ro
                 # skimage.io.imsave(save_path_right, sub_right)
 
     heading_json = rendering_img_base + '_heading_facade.json'
-    with open(heading_json, 'w') as f:
-        json.dump(headings_list, f)
+    json_data = json.dumps(headings_list)
+    buffer = BytesIO(json_data.encode('utf-8'))
+    s3_client.write_object(buffer, 'data', heading_json)
 
 
 
 
-def render_imgs(panorama_img, tmp_dir, tmp_dir_ifab, save_directly):
+def render_imgs(panorama_img, tmp_dir, tmp_dir_ifab, save_directly, s3_client):
 
     #render_num = 16
     render_num = 4
@@ -634,8 +644,11 @@ def render_imgs(panorama_img, tmp_dir, tmp_dir_ifab, save_directly):
         if not save_directly:
             save_path = os.path.join(tmp_dir, 'Render_' + str(i - start) + '.jpg')
             save_path_2 = os.path.join(tmp_dir_ifab, 'Render_' + str(i - start) + '.jpg')
-            skimage.io.imsave(save_path, sub)
-            skimage.io.imsave(save_path_2, sub)
+
+            pil_image = Image.fromarray(sub)
+
+            s3_client.write_image(pil_image, 'data', save_path)
+            s3_client.write_image(pil_image, 'data', save_path_2)
 
     # Get the top images
     #get_the_top()

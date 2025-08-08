@@ -10,7 +10,7 @@ from qutip import Bloch, basis
 from Panos.Pano_visualization import calculate_zenith_point_coordinate, calculate_horizon_coordinates, calculate_hvps, R_roll, R_pitch
 
 
-def draw_consensus_zp_hvps(zenith_point, hv_points, im, root):
+def draw_consensus_zp_hvps(zenith_point, hv_points, im, root, s3_client=None, bucket_name='data'):
     cir_r = 80
     hori_coordinates = []
     draw = ImageDraw.Draw(im)
@@ -41,7 +41,18 @@ def draw_consensus_zp_hvps(zenith_point, hv_points, im, root):
     # Convertire l'immagine in formato RGB prima di salvare come JPEG
     if im.mode == 'RGBA':
         im = im.convert('RGB')
-    im.save(os.path.join(root, 'consensus_zp_hvps.jpg'))
+    
+    # Salva su S3 se è fornito un client S3, altrimenti salva in locale
+    output_filename = os.path.join(root, 'consensus_zp_hvps.jpg')
+    
+    if s3_client is not None:
+        # Se è fornito un client S3, salva su S3
+        s3_client.write_image(im, bucket_name, output_filename)
+        print(f"Saved visualization to S3: {bucket_name}/{output_filename}")
+    else:
+        # Fallback al salvataggio locale
+        im.save(output_filename)
+        print(f"Saved visualization locally to: {output_filename}")
 
 
 
@@ -101,7 +112,7 @@ def draw_center_hvps_rectified_sphere(hv_points, root):
 
 
 
-def draw_center_hvps_on_panorams(zenith_point, hv_points, im, pitch, roll, root):
+def draw_center_hvps_on_panorams(zenith_point, hv_points, im, pitch, roll, root, s3_client=None, bucket_name='data'):
 
     cir_r = 80
     hori_coordinates = []
@@ -136,7 +147,18 @@ def draw_center_hvps_on_panorams(zenith_point, hv_points, im, pitch, roll, root)
     # Convertire l'immagine in formato RGB prima di salvare come JPEG
     if im.mode == 'RGBA':
         im = im.convert('RGB')
-    im.save(os.path.join(root, 'consensus_hvps_center_on_panoramas.jpg'))
+    
+    # Salva su S3 se è fornito un client S3, altrimenti salva in locale
+    output_filename = os.path.join(root, 'consensus_hvps_center_on_panoramas.jpg')
+    
+    if s3_client is not None:
+        # Se è fornito un client S3, salva su S3
+        s3_client.write_image(im, bucket_name, output_filename)
+        print(f"Saved visualization to S3: {bucket_name}/{output_filename}")
+    else:
+        # Fallback al salvataggio locale
+        im.save(output_filename)
+        print(f"Saved visualization locally to: {output_filename}")
 
 
 

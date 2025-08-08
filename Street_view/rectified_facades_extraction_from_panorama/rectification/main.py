@@ -7,15 +7,15 @@ def main():
     Main function that configures and starts the panorama processor.
     """
     # Configuration
-    root = 'Pano_new'
-    country_city = 'New'
+    root = 'rectification/'
+    country_city = 'results/'
     plot_redundant = True
     save_directly = False
     new_count = 5
     
     # New parameters for the GeoDataFrame
-    geodataframe_path = '../Enhanced_facades_for_extraction_639_facades.geojson'
-    images_base_path = r'C:\Users\RaimondoReggio\OneDrive - Net Service S.p.A\Documents - Hammon\WP4\data\PANO_new'
+    geodataframe_path = 'geodataframe/results/Enhanced_facades_for_extraction_718_facades.geojson'
+    images_base_path = '2025/sudest2/pano/'
 
     # Initialize and start the processor
     processor = PanoramaProcessor(
