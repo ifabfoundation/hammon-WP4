@@ -677,15 +677,54 @@ def create_geodataframe():
     # Setup plotting backend
     setup_plotting_backend(interactive=INTERACTIVE_PLOTS)
 
-    # Setup output directory
-    output_dir = OUTPUT_DIR
+    # Base path da cui partire
+    base_path = "2025"  # O altro percorso configurabile
+    
+    # Rileva tutte le zone disponibili
+    zones = auto_detect_zones(base_path=base_path)
+    
+    if not zones:
+        print(f"Nessuna zona trovata sotto {base_path}. Assicurati che esistano cartelle con struttura corretta.")
+        return
+    
+    # Per ogni zona, elabora le RUN disponibili
+    for zone in zones:
+        process_single_zone(zone, base_path)
+    
+    print(f"\nElaborazione completata per tutte le {len(zones)} zone.")
 
-    # Determine RUN values to use
-    RUN_VALUES = auto_detect_run_values(pano_folder_prefix=PANO_FOLDER_PATH)
-
+def process_single_zone(zone, base_path):
+    """Process a single zone with all its RUNs."""
+    print(f"\n{'='*50}")
+    print(f"ELABORAZIONE ZONA: {zone}")
+    print(f"{'='*50}")
+    
+    # Initialize S3 client
+    s3_client = S3Client()
+    
+    # Setup output directory per questa zona
+    zone_output_dir = os.path.join(OUTPUT_DIR, zone)
+    os.makedirs(zone_output_dir, exist_ok=True)
+    
+    # Percorso completo della zona
+    zone_path = f"{base_path}/{zone}"
+    
+    # Percorso del file delle camere per questa zona
+    camera_file_path = f"{zone_path}/shape/RUN.shp"
+    
+    # Prefisso della cartella delle panoramiche
+    pano_folder_path = f"{zone_path}/pano/"
+    
+    # Rileva le RUN disponibili in questa zona
+    run_values = auto_detect_run_values_in_zone(zone_path=zone_path)
+    
+    if not run_values:
+        print(f"Nessuna RUN trovata nella zona {zone}. Saltando...")
+        return
+        
     # Calculate dynamic bounding box from camera positions
     lat_min, lon_min, lat_max, lon_max = calculate_dynamic_bbox_from_cameras(
-        CAMERA_FILE_PATH, 
+        camera_file_path, 
         buffer_meters=BUFFER_METERS
     )
 
@@ -1025,7 +1064,7 @@ def create_geodataframe():
         gdf_combined['midpoint_y'] = gdf_combined['geometry_midpoint'].apply(lambda p: p.y if p else None)
 
         output_filename = f"Enhanced_facades_for_extraction_{len(gdf_combined)}_facades.geojson"
-        output_path = os.path.join(output_dir, output_filename)
+        output_path = os.path.join(zone_output_dir, output_filename)
         s3_client.write_geodataframe(gdf_combined, 'data', output_path)
         print(f"\nSaved enhanced facade data to: {output_path}")
 
@@ -1038,7 +1077,7 @@ def create_geodataframe():
             summary_df['midpoint_y'] = gdf_combined['midpoint_y'] if 'midpoint_y' in gdf_combined.columns else None
             
             summary_filename = f"Enhanced_facades_summary_{len(gdf_combined)}_facades.csv"
-            summary_path = os.path.join(output_dir, summary_filename)
+            summary_path = os.path.join(zone_output_dir, summary_filename)
             s3_client.write_dataframe(summary_df, 'data', summary_path)
             print(f"Saved summary CSV to: {summary_path}")
     else:
@@ -1155,13 +1194,13 @@ def create_geodataframe():
         
         # Also save to file for reference
         plot_filename = f"facade_extraction_visualization_{len(gdf_combined)}_facades.png"
-        plot_path = os.path.join(output_dir, plot_filename)
+        plot_path = os.path.join(zone_output_dir, plot_filename)
         s3_client.write_matplotlib_figure(fig, 'data', plot_path, 'png', dpi=300, bbox_inches='tight')
         print(f"Also saved plot to: {plot_path}")
     else:
         # Save the plot to file only
         plot_filename = f"facade_extraction_visualization_{len(gdf_combined)}_facades.png"
-        plot_path = os.path.join(output_dir, plot_filename)
+        plot_path = os.path.join(zone_output_dir, plot_filename)
         s3_client.write_matplotlib_figure(fig, 'data', plot_path, 'png', dpi=300, bbox_inches='tight')
         print(f"Saved visualization plot to: {plot_path}")
         plt.close()  # Close the figure to free memory
@@ -1193,13 +1232,13 @@ def create_geodataframe():
             
             # Also save overview plot
             overview_filename = f"study_area_overview_{len(gdf_combined)}_facades.png"
-            overview_path = os.path.join(output_dir, overview_filename)
+            overview_path = os.path.join(zone_output_dir, overview_filename)
             s3_client.write_matplotlib_figure(fig, 'data', overview_path, 'png', dpi=300, bbox_inches='tight')
             print(f"Also saved overview plot to: {overview_path}")
         else:
             # Save overview plot
             overview_filename = f"study_area_overview_{len(gdf_combined)}_facades.png"
-            overview_path = os.path.join(output_dir, overview_filename)
+            overview_path = os.path.join(zone_output_dir, overview_filename)
             s3_client.write_matplotlib_figure(fig, 'data', overview_path, 'png', dpi=300, bbox_inches='tight')
             print(f"Saved overview plot to: {overview_path}")
             plt.close()

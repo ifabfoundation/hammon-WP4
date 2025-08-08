@@ -4,14 +4,64 @@ from geodataframe.utils.libraries import *
 Utility functions
 """
 
-def auto_detect_run_values(bucket_name: str = 'geolander.streetview', pano_folder_prefix="Pano_new"):
-    """Automatically detect available RUN values from PANO_new folder structure."""
-    print(f"Auto-detecting RUN values from: {bucket_name}/{pano_folder_prefix}")
+def auto_detect_zones(bucket_name: str = 'geolander.streetview', base_path="2025"):
+    """Automatically detect available zones from the base path structure."""
+    print(f"Auto-detecting zones from: {bucket_name}/{base_path}")
+    
+    try:
+        s3_client_obj = S3Client()
+        s3_client = s3_client_obj.get_s3_client()
+        zones = []
+
+        search_prefix = f"{base_path}/"
+        paginator = s3_client.get_paginator('list_objects_v2')
+
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=search_prefix, Delimiter='/'):
+            # Ottieni tutti i prefissi comuni (equivalenti alle directory)
+            for prefix in page.get('CommonPrefixes', []):
+                # Estrai il nome della "directory" dal prefisso
+                prefix_path = prefix.get('Prefix', '')
+                zone_name = prefix_path.rstrip('/').split('/')[-1]
+                
+                # Verifica che la zona abbia la struttura corretta (contiene pano/ e shape/)
+                pano_exists = False
+                shape_exists = False
+                
+                # Controlla se esiste la sottocartella pano/
+                pano_prefix = f"{prefix_path}pano/"
+                pano_response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=pano_prefix, MaxKeys=1)
+                if 'Contents' in pano_response:
+                    pano_exists = True
+                
+                # Controlla se esiste la sottocartella shape/
+                shape_prefix = f"{prefix_path}shape/"
+                shape_response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=shape_prefix, MaxKeys=1)
+                if 'Contents' in shape_response:
+                    shape_exists = True
+                
+                # Aggiungi la zona solo se ha entrambe le cartelle richieste
+                if pano_exists and shape_exists:
+                    zones.append(zone_name)
+        
+        zones = sorted(list(set(zones)))
+        print(f"Found {len(zones)} zones: {zones}")
+        return zones
+        
+    except Exception as e:
+        print(f"Error auto-detecting zones: {e}")
+        return []
+
+def auto_detect_run_values_in_zone(bucket_name: str = 'geolander.streetview', zone_path="2025/sudest2"):
+    """Automatically detect available RUN values in a specific zone's pano folder."""
+    print(f"Auto-detecting RUN values in zone: {zone_path}")
     
     try:
         s3_client_obj = S3Client()
         s3_client = s3_client_obj.get_s3_client()
         run_values = []
+        
+        # Cartella pano all'interno della zona
+        pano_folder_prefix = f"{zone_path}/pano/"
 
         paginator = s3_client.get_paginator('list_objects_v2')
 
@@ -26,11 +76,11 @@ def auto_detect_run_values(bucket_name: str = 'geolander.streetview', pano_folde
                     run_values.append(folder_name)
         
         run_values = sorted(list(set(run_values)))
-        print(f"Found {len(run_values)} RUN values: {run_values}")
+        print(f"Found {len(run_values)} RUN values in zone {zone_path}: {run_values}")
         return run_values
         
     except Exception as e:
-        print(f"Error auto-detecting RUN values: {e}")
+        print(f"Error auto-detecting RUN values in zone: {e}")
         return []
 
 def setup_plotting_backend(interactive=False):
