@@ -704,7 +704,7 @@ def process_single_zone(zone, base_path):
     
     # Setup output directory per questa zona
     zone_output_dir = os.path.join(OUTPUT_DIR, zone)
-    os.makedirs(zone_output_dir, exist_ok=True)
+    #os.makedirs(zone_output_dir, exist_ok=True)
     
     # Percorso completo della zona
     zone_path = f"{base_path}/{zone}"
