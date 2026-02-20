@@ -1,0 +1,148 @@
+# Pandora Pipeline Configuration
+
+# ============================================================================
+# S3 CONFIGURATION
+# ============================================================================
+s3:
+  endpoint_url: "https://s3.hpccloud.lngs.infn.it/"
+  input_bucket: "geolander.streetview"
+  output_bucket: "ifab.data"
+  csv_key: "geodataframe/facades_matched_summary_with_orientation.csv"
+  input_prefix: "2025"                    # Prefix for panoramas
+  output_prefix_rect: "rectification_results"
+  output_prefix_crop: "crop_results"
+
+# ============================================================================
+# PROCESSING CONFIGURATION
+# ============================================================================
+processing:
+  # Parallelism Settings
+  num_workers: 16                         # Parallel workers (adjust for your server)
+  batch_size: 100                         # Panorami per batch
+  prefetch_buffer: 3                      # Panorami da scaricare in anticipo
+  
+  # Storage Management
+  max_storage_gb: 3000                    # Max storage usage (GB)
+  storage_check_interval: 10              # Check storage ogni N batch
+  keep_intermediate: true                 # Mantieni output rectification per cropping
+  cleanup_input_after_rect: false         # Delete input dopo rectification (false = mantieni per debug)
+  cleanup_rect_after_crop: false          # Delete rectification dopo cropping
+  
+  # Resume & Error Handling
+  resume: true                            # Resume from previous run
+  skip_existing: true                     # Skip già processati su S3
+  max_retries: 3                          # Max retry per panorama fallito
+  retry_delay: 5                          # Secondi tra retry
+
+# ============================================================================
+# RECTIFICATION SETTINGS
+# ============================================================================
+rectification:
+  # Output Settings
+  save_heading_map: "full"                # Options: full, compressed, bottom_row_only, none
+  image_quality: 95                       # JPEG quality (1-100)
+  
+  # Algorithm Parameters
+  fov_horizontal: 154                     # Horizontal field of view (degrees)
+  fov_vertical_min: -44                   # Vertical FOV min (degrees)
+  fov_vertical_max: 83                    # Vertical FOV max (degrees)
+  resolution_mpp: 0.025                   # Meters per pixel (0.0125 = high, 0.025 = medium)
+  
+  # Vanishing Points Detection
+  vp_detection:
+    lsd_scale: 0.8                        # Line segment detector scale
+    min_line_length: 20                   # Min line length (pixels)
+    ransac_threshold: 2.0                 # RANSAC inlier threshold
+    consensus_method: "svd"               # Consensus method: svd, mean, median
+  
+  # Performance
+  plot_redundant: false                   # Save debug plots (slow!)
+  save_directly: true                     # Save tiles directly (vs in-memory)
+
+# ============================================================================
+# CROPPING SETTINGS
+# ============================================================================
+cropping:
+  # Output Settings
+  image_quality: 95                       # JPEG quality (1-100)
+  save_intermediate: false                # Save cropped image before sky removal
+  
+  # Processing Parameters
+  building_offset: 0.8                    # Scaling factor for building bounds (0-1)
+  sky_offset: 20                          # Pixels above detected roof line
+  
+  # Sky Detection
+  sky_detection:
+    window_size: 11                       # Gaussian blur window
+    threshold_factor: 1.5                 # Peak detection threshold
+    
+  # Quality Control
+  min_building_width: 30                  # Min building width (pixels) - lowered from 50
+  min_building_height: 100                # Min building height (pixels)
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+logging:
+  level: "INFO"                           # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(levelname)s - [%(name)s:%(lineno)d] - %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"
+  
+  # File Logging
+  file:
+    enabled: true
+    path: "logs/pipeline.log"
+    max_bytes: 104857600                  # 100 MB
+    backup_count: 5                       # Keep 5 rotated logs
+  
+  # Console Logging
+  console:
+    enabled: true
+    colored: true                         # Use colors (requires coloredlogs)
+
+# ============================================================================
+# PATHS CONFIGURATION
+# ============================================================================
+paths:
+  temp_dir: "temp"                        # Temporary files
+  output_dir: "output"                    # Local output
+  logs_dir: "logs"                        # Log files
+  status_file: "logs/pipeline_status.json"  # Progress tracking
+  
+  # Subdirectories (auto-created)
+  temp_download: "temp/download"
+  temp_rectification: "temp/rectification"
+  temp_cropping: "temp/cropping"
+  output_rectification: "output/rectification"
+  output_cropping: "output/cropping"
+
+# ============================================================================
+# MONITORING & REPORTING
+# ============================================================================
+monitoring:
+  enabled: true
+  progress_bar: true                      # Show progress bars
+  statistics_interval: 100                # Print stats ogni N panorami
+  save_statistics: true                   # Save stats to JSON
+  
+  # Performance Metrics
+  track_timing: true                      # Track execution times
+  track_memory: true                      # Track memory usage
+  track_storage: true                     # Track storage usage
+
+# ============================================================================
+# SLURM CONFIGURATION (optional)
+# ============================================================================
+slurm:
+  enabled: false                          # Auto-detect if running under SLURM
+  job_name: "pandora"
+  output_pattern: "logs/slurm_%j.out"
+  error_pattern: "logs/slurm_%j.err"
+  
+  # Resource requests (for sbatch scripts)
+  resources:
+    nodes: 1
+    tasks_per_node: 32
+    mem_gb: 350
+    time_days: 7
+    partition: "cpu"                      # Adjust for your cluster

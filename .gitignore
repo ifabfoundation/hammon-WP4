@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Data symlink
+data
+
+# Data directories (large files - DO NOT UPLOAD)
+data/
+outputs/
+output/
+temp/
+tmp/
+
+# Logs
+logs/
+scripts/logs/
+
+# Environment
+hammon-env/
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter notebooks and checkpoints
+*.ipynb
+.ipynb_checkpoints/
+
+# Scientific report and documentation (confidential)
+scientific_report/
+docs/
+
+# Result images / figures (industrial secret)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.pdf
+
+# LaTeX auxiliary files
+*.aux
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# Credentials (safety net)
+*.pem
+*.key
+
+# Delivery archives
+*.zip
