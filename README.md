@@ -134,9 +134,4 @@ See individual script headers in `scripts/` for SLURM resource requirements and 
 
 ## License
 
-This project was developed by [IFAB Foundation](https://www.ifabfoundation.org) as part of the HaMMon initiative for environmental risk management.
-
-## Contact
-
-**IFAB Foundation** — International Foundation Big Data and AI for Human Development  
-Orso Peruzzi — orso.peruzzi@ifabfoundation.org
+This project is licensed under the [MIT License](LICENSE).
